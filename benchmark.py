@@ -22,10 +22,11 @@ N_RUNS      = 5
 INPUT_LEN   = 1_000
 INPUT_SIZES = [100, 1_000, 10_000, 100_000]
 
-ROOT       = Path(__file__).parent
-BUILD_DIR  = ROOT / "build"
-LOGOS_DIR  = ROOT / "logos"
-OUTPUT_PNG = ROOT / "benchmark_results.png"
+ROOT        = Path(__file__).parent
+BUILD_DIR   = ROOT / "build"
+LOGOS_DIR   = ROOT / "logos"
+OUTPUT_PNG  = ROOT / "benchmark_results.png"
+CACHE_FILE  = ROOT / "benchmark_cache.json"
 
 
 # ─────────────────────────── Helpers ────────────────────────────
@@ -87,6 +88,26 @@ def bench_bqn():
     return parse_number(out) if rc == 0 else None
 
 
+def bench_bqn_count():
+    interp = find_cmd("cbqn", "bqn")
+    if not interp:
+        return None
+    fn = '{n\u2190+\u00b4\u00271\u0027=\U0001d569\u22c4("1"/\u02dcn-1)\u223e("0"/\u02dc(\u2260\U0001d569)-n)\u223e\u00271\u0027}'
+    script = f'\u2022Out \u2022Fmt {N_ITERS}({fn})\u2022_timed {INPUT_LEN}\u294a"01"'
+    out, _, rc = run_cmd([interp, "-e", script])
+    return parse_number(out) if rc == 0 else None
+
+
+def bench_bqn_tacit():
+    interp = find_cmd("cbqn", "bqn")
+    if not interp:
+        return None
+    fn = '"101"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4\u00271\u0027\u22b8=))'
+    script = f'\u2022Out \u2022Fmt {N_ITERS}({fn})\u2022_timed {INPUT_LEN}\u294a"01"'
+    out, _, rc = run_cmd([interp, "-e", script])
+    return parse_number(out) if rc == 0 else None
+
+
 # ─────────────────────────── Benchmark: Uiua ────────────────────
 
 def bench_uiua():
@@ -97,6 +118,25 @@ def bench_uiua():
         f'S \u2190 \u21af{INPUT_LEN} "01"\n'
         f"T \u2190 now\n"
         f"\u2365(\u25cc\u21bb1\u21cc\u2346 S){N_ITERS}\n"
+        f"&p \u00f7{N_ITERS} -T now\n"
+    )
+    path = write_temp(".ua", code)
+    try:
+        out, err, rc = run_cmd([interp, "run", path])
+        return parse_number(out) if rc == 0 else None
+    finally:
+        os.unlink(path)
+
+
+def bench_uiua_count():
+    interp = find_cmd("uiua")
+    if not interp:
+        return None
+    # \u02dc=˜ \u25bd=▽ \u2282=⊂ \u2283=⊃ \u2081=₁ \u29e7=⧻
+    code = (
+        f'S \u2190 \u21af{INPUT_LEN} "01"\n'
+        f"T \u2190 now\n"
+        f"\u2365(\u25cc\u02dc\u25bd\"101\"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1 S){N_ITERS}\n"
         f"&p \u00f7{N_ITERS} -T now\n"
     )
     path = write_temp(".ua", code)
@@ -128,6 +168,26 @@ def bench_j():
         os.unlink(path)
 
 
+def bench_j_count():
+    interp = find_cmd("jconsole", "ijconsole")
+    if not interp:
+        return None
+    code = (
+        f"input =: {INPUT_LEN} $ '01'\n"
+        f"n =: {N_ITERS}\n"
+        "Mob =: '101'#~1,~#(<:@],-)([:+/'1'=[)\n"
+        "bench =: 3 : 'Mob input'\n"
+        "echo (6!:2 'bench\"0 i. n') % n\n"
+        "exit ''\n"
+    )
+    path = write_temp(".ijs", code)
+    try:
+        out, _, rc = run_cmd([interp, path])
+        return parse_number(out) if rc == 0 else None
+    finally:
+        os.unlink(path)
+
+
 # ─────────────────────────── Benchmark: Dyalog APL ──────────────
 
 def bench_apl():
@@ -139,6 +199,30 @@ def bench_apl():
         f"n\u2190{N_ITERS}\n"
         "t\u21902\u2283\u2395AI\n"
         "_\u2190{(1\u233d\u2282\u2364\u2352\u235b\u2337)input}\u00a8\u2373n\n"
+        "\u2395\u2190'RESULT ',(\u2355((2\u2283\u2395AI)-t)\u00f71000\u00d7n)\n"
+        "\u2395OFF\n"
+    )
+    env = os.environ.copy()
+    env["RIDE_INIT"] = "SERVE::0"
+    out, _, _ = run_cmd([interp], input_text=code, env=env)
+    if not out:
+        return None
+    for line in out.splitlines():
+        if "RESULT" in line:
+            return parse_number(line.split("RESULT")[-1])
+    return None
+
+
+def bench_apl_count():
+    interp = find_cmd("dyalog")
+    if not interp:
+        return None
+    code = (
+        f"input\u2190{INPUT_LEN}\u2374'01'\n"
+        f"n\u2190{N_ITERS}\n"
+        "Mob\u2190'101'/\u23681,\u2368\u2262((1-\u2368\u22a2),-)( +/'1'\u2218=)\n"
+        "t\u21902\u2283\u2395AI\n"
+        "_\u2190{Mob input}\u00a8\u2373n\n"
         "\u2395\u2190'RESULT ',(\u2355((2\u2283\u2395AI)-t)\u00f71000\u00d7n)\n"
         "\u2395OFF\n"
     )
@@ -252,6 +336,274 @@ def bench_cpp(name, func_body):
         return None
     out, _, rc = run_cmd([bin_path])
     return parse_number(out) if rc == 0 else None
+
+
+# ─────────────────────────── Benchmark: Rust ────────────────────
+
+_rust_bin_cache = {}
+
+
+def bench_rust(name, func_body):
+    compiler = find_cmd("rustc")
+    if not compiler:
+        return None
+
+    if name not in _rust_bin_cache:
+        BUILD_DIR.mkdir(exist_ok=True)
+        src = (
+            "use std::time::Instant;\n\n"
+            "fn maximum_odd_binary(mut s: Vec<u8>) -> Vec<u8> {\n"
+            f"    {func_body}\n"
+            "    s\n"
+            "}\n\n"
+            "fn main() {\n"
+            f'    let input: Vec<u8> = "01".repeat({INPUT_LEN // 2}).into_bytes();\n'
+            f"    let n = {N_ITERS};\n"
+            "    let mut result = Vec::new();\n"
+            "    let start = Instant::now();\n"
+            "    for _ in 0..n {\n"
+            "        result = maximum_odd_binary(input.clone());\n"
+            "    }\n"
+            "    let elapsed = start.elapsed().as_secs_f64();\n"
+            "    println!(\"{}\", elapsed / n as f64);\n"
+            "    if result.is_empty() { std::process::exit(1); }\n"
+            "}\n"
+        )
+        src_path = BUILD_DIR / f"bench_{name}.rs"
+        bin_path = BUILD_DIR / f"bench_{name}"
+        src_path.write_text(src)
+        _, cerr, crc = run_cmd(
+            [compiler, "-O", "-o", str(bin_path), str(src_path)]
+        )
+        if crc != 0:
+            _rust_bin_cache[name] = None
+            return None
+        _rust_bin_cache[name] = str(bin_path)
+
+    bin_path = _rust_bin_cache[name]
+    if bin_path is None:
+        return None
+    out, _, rc = run_cmd([bin_path])
+    return parse_number(out) if rc == 0 else None
+
+
+# ─────────────────────────── Benchmark: Rust nightly ────────────
+
+_rust_nightly_bin_cache = {}
+
+
+def bench_rust_nightly(name, func_body):
+    rustup = find_cmd("rustup")
+    if not rustup:
+        return None
+
+    if name not in _rust_nightly_bin_cache:
+        BUILD_DIR.mkdir(exist_ok=True)
+        src = (
+            "#![feature(iter_partition_in_place)]\n\n"
+            "use std::time::Instant;\n\n"
+            "fn maximum_odd_binary(mut s: Vec<u8>) -> Vec<u8> {\n"
+            f"    {func_body}\n"
+            "    s\n"
+            "}\n\n"
+            "fn main() {\n"
+            f'    let input: Vec<u8> = "01".repeat({INPUT_LEN // 2}).into_bytes();\n'
+            f"    let n = {N_ITERS};\n"
+            "    let mut result = Vec::new();\n"
+            "    let start = Instant::now();\n"
+            "    for _ in 0..n {\n"
+            "        result = maximum_odd_binary(input.clone());\n"
+            "    }\n"
+            "    let elapsed = start.elapsed().as_secs_f64();\n"
+            "    println!(\"{}\", elapsed / n as f64);\n"
+            "    if result.is_empty() { std::process::exit(1); }\n"
+            "}\n"
+        )
+        src_path = BUILD_DIR / f"bench_{name}.rs"
+        bin_path = BUILD_DIR / f"bench_{name}"
+        src_path.write_text(src)
+        _, cerr, crc = run_cmd(
+            [rustup, "run", "nightly", "rustc", "-O",
+             "-o", str(bin_path), str(src_path)]
+        )
+        if crc != 0:
+            _rust_nightly_bin_cache[name] = None
+            return None
+        _rust_nightly_bin_cache[name] = str(bin_path)
+
+    bin_path = _rust_nightly_bin_cache[name]
+    if bin_path is None:
+        return None
+    out, _, rc = run_cmd([bin_path])
+    return parse_number(out) if rc == 0 else None
+
+
+# ─────────────────────────── Benchmark: D ───────────────────────
+
+_d_bin_cache = {}
+
+
+def bench_d(name, func_body):
+    compiler = find_cmd("ldc2", "dmd")
+    if not compiler:
+        return None
+
+    if name not in _d_bin_cache:
+        BUILD_DIR.mkdir(exist_ok=True)
+        src = (
+            "import std.algorithm : sort, partition, bringToFront;\n"
+            "import std.datetime.stopwatch : StopWatch, AutoStart;\n"
+            "import std.stdio : writeln;\n\n"
+            "ubyte[] maximumOddBinary(ubyte[] s) {\n"
+            f"    {func_body}\n"
+            "    return s;\n"
+            "}\n\n"
+            "void main() {\n"
+            f"    ubyte[] fullInput;\n"
+            f"    foreach (_; 0 .. {INPUT_LEN // 2}) fullInput ~= cast(ubyte[])(\"01\".dup);\n"
+            f"    enum n = {N_ITERS};\n"
+            "    ubyte[] result;\n"
+            "    auto sw = StopWatch(AutoStart.yes);\n"
+            "    foreach (_; 0 .. n)\n"
+            "        result = maximumOddBinary(fullInput.dup);\n"
+            "    sw.stop();\n"
+            '    writeln(sw.peek.total!"nsecs" / 1.0e9 / n);\n'
+            "}\n"
+        )
+        src_path = BUILD_DIR / f"bench_{name}.d"
+        bin_path = BUILD_DIR / f"bench_{name}"
+        src_path.write_text(src)
+        if "ldc2" in compiler:
+            _, cerr, crc = run_cmd(
+                [compiler, "-O2", f"-of={bin_path}", str(src_path)]
+            )
+        else:
+            _, cerr, crc = run_cmd(
+                [compiler, "-O", f"-of={bin_path}", str(src_path)]
+            )
+        if crc != 0:
+            _d_bin_cache[name] = None
+            return None
+        _d_bin_cache[name] = str(bin_path)
+
+    bin_path = _d_bin_cache[name]
+    if bin_path is None:
+        return None
+    out, _, rc = run_cmd([bin_path])
+    return parse_number(out) if rc == 0 else None
+
+
+# ─────────────────────────── Benchmark: Nim ─────────────────────
+
+_nim_bin_cache = {}
+
+
+def bench_nim(name, func_body):
+    compiler = find_cmd("nim")
+    if not compiler:
+        compiler_alt = Path.home() / ".nimble/bin/nim"
+        if compiler_alt.exists():
+            compiler = str(compiler_alt)
+        else:
+            return None
+
+    if name not in _nim_bin_cache:
+        BUILD_DIR.mkdir(exist_ok=True)
+        src = (
+            "import std/algorithm\n"
+            "import std/monotimes\n"
+            "import std/times\n"
+            "import std/strutils\n\n"
+            "proc maximumOddBinary(s: var string) =\n"
+            f"  {func_body}\n\n"
+            "proc main() =\n"
+            f'  let base = repeat("01", {INPUT_LEN // 2})\n'
+            f"  let n = {N_ITERS}\n"
+            "  var result = base\n"
+            "  let start = getMonoTime()\n"
+            "  for i in 0 ..< n:\n"
+            "    result = base\n"
+            "    maximumOddBinary(result)\n"
+            "  let elapsed = (getMonoTime() - start).inNanoseconds.float / 1e9\n"
+            '  echo elapsed / n.float\n\n'
+            "main()\n"
+        )
+        src_path = BUILD_DIR / f"bench_{name}.nim"
+        bin_path = BUILD_DIR / f"bench_{name}_nim"
+        src_path.write_text(src)
+        _, cerr, crc = run_cmd(
+            [compiler, "c", "-d:release", "--hints:off",
+             f"--out:{bin_path}", str(src_path)],
+            timeout=60,
+        )
+        if crc != 0:
+            _nim_bin_cache[name] = None
+            return None
+        _nim_bin_cache[name] = str(bin_path)
+
+    bin_path = _nim_bin_cache[name]
+    if bin_path is None:
+        return None
+    out, _, rc = run_cmd([bin_path])
+    return parse_number(out) if rc == 0 else None
+
+
+# ─────────────────────────── Benchmark: Julia ───────────────────
+
+def bench_julia():
+    interp = find_cmd("julia")
+    if not interp:
+        return None
+    code = (
+        "function maximum_odd_binary(s)\n"
+        "    v = sort(s, rev=true)\n"
+        "    circshift(v, -1)\n"
+        "end\n\n"
+        f'input = collect(repeat("01", {INPUT_LEN // 2}))\n'
+        "maximum_odd_binary(input)\n"
+        f"n = {N_ITERS}\n"
+        "t = @elapsed for _ in 1:n\n"
+        "    maximum_odd_binary(input)\n"
+        "end\n"
+        "println(t / n)\n"
+    )
+    path = write_temp(".jl", code)
+    try:
+        out, _, rc = run_cmd([interp, "--startup-file=no", path], timeout=60)
+        return parse_number(out) if rc == 0 else None
+    finally:
+        os.unlink(path)
+
+
+# ─────────────────────────── Benchmark: Python ──────────────────
+
+def bench_python_sort():
+    interp = find_cmd("python3", "python")
+    if not interp:
+        return None
+    code = (
+        "import time\n"
+        f'input_str = "01" * {INPUT_LEN // 2}\n'
+        "def maximum_odd_binary(s):\n"
+        "    s = list(s)\n"
+        "    s.sort(reverse=True)\n"
+        "    s.append(s.pop(0))\n"
+        '    return "".join(s)\n\n'
+        "maximum_odd_binary(input_str)\n"
+        f"n = {N_ITERS}\n"
+        "start = time.perf_counter()\n"
+        "for _ in range(n):\n"
+        "    maximum_odd_binary(input_str)\n"
+        "elapsed = time.perf_counter() - start\n"
+        "print(elapsed / n)\n"
+    )
+    path = write_temp(".py", code)
+    try:
+        out, _, rc = run_cmd([interp, path], timeout=60)
+        return parse_number(out) if rc == 0 else None
+    finally:
+        os.unlink(path)
+
 
 
 # ─────────────────────────── Logo: C++ ──────────────────────────
@@ -432,6 +784,7 @@ def generate_html(all_results, output_path):
                     bytes=r.get("bytes"), color=r["color"],
                     logo=_logo_b64(r.get("logo", "")),
                     script=r.get("script", ""),
+                    source_code=r.get("source_code", ""),
                     by_size={},
                 )
             sol_map[key]["by_size"][str(size)] = dict(
@@ -551,8 +904,8 @@ def generate_html(all_results, output_path):
   <table>
     <thead>
       <tr>
-        <th>#</th><th>Language</th><th>Solution</th><th>Bytes</th>
-        <th>Median</th><th>All runs (\u03bcs)</th><th>Script</th>
+        <th>#</th><th>Language</th><th>Solution</th><th>Code</th>
+        <th>Median</th><th>Script</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -674,11 +1027,11 @@ function updateTable() {{
   vis.forEach((d, rank) => {{
     const sd = d.by_size[currentSize];
     const tr = document.createElement('tr');
-    const b = d.bytes != null ? d.bytes + 'B' : '\\u2014';
-    const runs = sd.all_times_us.map(t => t.toFixed(1)).join(', ');
     const scriptHtml = d.script
       ? d.script.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       : '';
+    const rawCode = d.source_code || d.code || '';
+    const codeHtml = rawCode.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     tr.innerHTML = `
       <td>${{rank + 1}}</td>
       <td><div class="lang-cell">
@@ -687,9 +1040,8 @@ function updateTable() {{
         ${{d.name}}
       </div></td>
       <td class="code-cell">${{d.code}}</td>
-      <td>${{b}}</td>
+      <td class="code-cell">${{codeHtml}}</td>
       <td class="time-val">${{sd.median_display}}</td>
-      <td class="runs">${{runs}}</td>
       <td class="script-cell">${{scriptHtml}}</td>
     `;
     tbody.appendChild(tr);
@@ -782,6 +1134,24 @@ SOLUTIONS = [
         ),
     ),
     dict(
+        name="BQN", code="Mob (count)", bytes=None,
+        color="#3d9080", logo="bqn",
+        bench=bench_bqn_count,
+        script=(
+            '  {n\u2190+\u00b4\'1\'=\U0001d569 \u22c4 ("1"/\u02dcn-1)\u223e("0"/\u02dc(\u2260\U0001d569)-n)\u223e\'1\'}\n'
+            '  O(n) counting approach \u2014 no sort, builds result from char counts'
+        ),
+    ),
+    dict(
+        name="BQN", code="Mob (tacit)", bytes=None,
+        color="#1a5c50", logo="bqn",
+        bench=bench_bqn_tacit,
+        script=(
+            '  "101"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4\'1\'\u22b8=))\n'
+            '  O(n) tacit counting \u2014 same approach, point-free style'
+        ),
+    ),
+    dict(
         name="Kap", code="1\u233d\u2228", bytes=3,
         color="#55a630", logo="kap",
         bench=bench_kap,
@@ -799,6 +1169,15 @@ SOLUTIONS = [
             '  T \u2190 now\n'
             '  \u2365(\u25cc\u21bb1\u21cc\u2346 S)N            \u2190 timed: apply fn N times, pop result\n'
             '  &p \u00f7N -T now'
+        ),
+    ),
+    dict(
+        name="Uiua", code="Mob (count)", bytes=None,
+        color="#c41080", logo="uiua",
+        bench=bench_uiua_count,
+        script=(
+            '  \u02dc\u25bd"101"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1\n'
+            '  O(n) counting approach \u2014 no sort'
         ),
     ),
     dict(
@@ -833,6 +1212,15 @@ SOLUTIONS = [
         ),
     ),
     dict(
+        name="J", code="Mob (count)", bytes=None,
+        color="#1a9ad4", logo="j",
+        bench=bench_j_count,
+        script=(
+            "  bench =: 3 : '''101''#~1,~#(<:@],-)([:+/''1''=y)'\n"
+            "  echo (6!:2 'bench\"0 i. N') % N       \u2190 O(n) counting, no sort"
+        ),
+    ),
+    dict(
         name="APL", code="1\u233d\u2282\u2364\u2352\u235b\u2337", bytes=7,
         color="#24a148", logo="apl",
         bench=bench_apl,
@@ -844,8 +1232,18 @@ SOLUTIONS = [
         ),
     ),
     dict(
+        name="APL", code="Mob (count)", bytes=None,
+        color="#1d8a3e", logo="apl",
+        bench=bench_apl_count,
+        script=(
+            "  Mob\u2190'101'/\u23681,\u2368\u2262((1-\u2368\u22a2),-)( +/'1'\u2218=)\n"
+            '  _\u2190{Mob input}\u00a8\u2373N        \u2190 O(n) counting, no sort'
+        ),
+    ),
+    dict(
         name="C++", code="partition+rotate", bytes=None,
         color="#659ad2", logo="cpp_logo",
+        source_code="partition(s, …);\nrotate(s, next(s.begin()));",
         bench=lambda: bench_cpp(
             "partition_rotate",
             "std::ranges::partition(s, [](auto c) { return c == '1'; });\n"
@@ -862,6 +1260,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="sort+rotate", bytes=None,
         color="#4a7fb5", logo="cpp_logo",
+        source_code="sort(s, greater{});\nrotate(s, next(s.begin()));",
         bench=lambda: bench_cpp(
             "sort_rotate",
             "std::ranges::sort(s, std::greater{});\n"
@@ -873,6 +1272,143 @@ SOLUTIONS = [
             '  for (int i = 0; i < N; ++i)\n'
             '    result = maximum_odd_binary(input);  // pass-by-value copy + sort + rotate\n'
             '  auto end = high_resolution_clock::now();'
+        ),
+    ),
+    dict(
+        name="C++", code="count+construct", bytes=None,
+        color="#3a6a9f", logo="cpp_logo",
+        source_code="auto n = ranges::count(s, '1');\nreturn string(n-1,'1')\n  + string(s.size()-n,'0') + '1';",
+        bench=lambda: bench_cpp(
+            "count_construct",
+            "auto n = std::ranges::count(s, '1');\n"
+            "  s = std::string(n - 1, '1') + std::string(s.size() - n, '0') + '1';",
+        ),
+        script=(
+            '  // O(n) count + construct, no sort\n'
+            '  for (int i = 0; i < N; ++i)\n'
+            '    result = maximum_odd_binary(input);'
+        ),
+    ),
+    dict(
+        name="Rust", code="sort+rotate", bytes=None,
+        color="#dea584", logo="rust",
+        source_code="s.sort_unstable_by(|a,b| b.cmp(a));\ns.rotate_left(1);",
+        bench=lambda: bench_rust(
+            "rust_sort",
+            "s.sort_unstable_by(|a, b| b.cmp(a));\n"
+            "    s.rotate_left(1);",
+        ),
+        script=(
+            '  let start = Instant::now();\n'
+            '  for _ in 0..N {\n'
+            '      result = maximum_odd_binary(input.clone());  // clone + sort + rotate\n'
+            '  }'
+        ),
+    ),
+    dict(
+        name="Rust", code="partition+rotate", bytes=None,
+        color="#c47a5a", logo="rust",
+        source_code="s.iter_mut().partition_in_place(\n  |c| *c == b'1');\ns.rotate_left(1);",
+        bench=lambda: bench_rust_nightly(
+            "rust_partition",
+            "s.iter_mut().partition_in_place(|c| *c == b'1');\n"
+            "    s.rotate_left(1);",
+        ),
+        script=(
+            '  #![feature(iter_partition_in_place)]  // nightly\n'
+            '  for _ in 0..N {\n'
+            '      result = maximum_odd_binary(input.clone());  // clone + partition + rotate\n'
+            '  }'
+        ),
+    ),
+    dict(
+        name="Rust", code="count+construct", bytes=None,
+        color="#b08060", logo="rust",
+        source_code="let n = s.iter().filter(\n  |&&c| c==b'1').count();\n// build (n-1) '1's + zeros + '1'",
+        bench=lambda: bench_rust(
+            "rust_count",
+            "let n = s.iter().filter(|&&c| c == b'1').count();\n"
+            "    let len = s.len();\n"
+            "    s.clear();\n"
+            "    s.extend(std::iter::repeat(b'1').take(n - 1));\n"
+            "    s.extend(std::iter::repeat(b'0').take(len - n));\n"
+            "    s.push(b'1');",
+        ),
+        script=(
+            '  // O(n) count + construct, no sort\n'
+            '  for _ in 0..N {\n'
+            '      result = maximum_odd_binary(input.clone());\n'
+            '  }'
+        ),
+    ),
+    dict(
+        name="D", code="sort+rotate", bytes=None,
+        color="#b03030", logo="d",
+        source_code='sort!"a > b"(s);\nbringToFront(s[0..1], s[1..$]);',
+        bench=lambda: bench_d(
+            "d_sort",
+            'sort!"a > b"(s);\n'
+            "    bringToFront(s[0 .. 1], s[1 .. $]);",
+        ),
+        script=(
+            '  auto sw = StopWatch(AutoStart.yes);\n'
+            '  foreach (_; 0 .. N)\n'
+            '      result = maximumOddBinary(fullInput.dup);  // dup + sort + rotate\n'
+            '  sw.stop();'
+        ),
+    ),
+    dict(
+        name="D", code="partition+rotate", bytes=None,
+        color="#e04040", logo="d",
+        source_code="partition!(c => c == '1')(s);\nbringToFront(s[0..1], s[1..$]);",
+        bench=lambda: bench_d(
+            "d_partition",
+            "partition!(c => c == '1')(s);\n"
+            "    bringToFront(s[0 .. 1], s[1 .. $]);",
+        ),
+        script=(
+            '  foreach (_; 0 .. N)\n'
+            '      result = maximumOddBinary(fullInput.dup);  // dup + partition + rotate'
+        ),
+    ),
+    dict(
+        name="Nim", code="sort+rotate", bytes=None,
+        color="#ffe953", logo="nim",
+        source_code="sort(s, order = Descending)\nrotateLeft(s, 1)",
+        bench=lambda: bench_nim(
+            "nim_sort",
+            "sort(s, order = Descending)\n"
+            "  rotateLeft(s, 1)",
+        ),
+        script=(
+            '  let start = getMonoTime()\n'
+            '  for i in 0 ..< N:\n'
+            '      result = base; maximumOddBinary(result)  // copy + sort + rotate\n'
+            '  let elapsed = ...'
+        ),
+    ),
+    dict(
+        name="Julia", code="sort+circshift", bytes=None,
+        color="#9558b2", logo="julia",
+        source_code="v = sort(s, rev=true)\ncircshift(v, -1)",
+        bench=bench_julia,
+        script=(
+            '  maximum_odd_binary(input)  # warmup\n'
+            '  t = @elapsed for _ in 1:N\n'
+            '      maximum_odd_binary(input)  # sort + circshift (allocates)\n'
+            '  end'
+        ),
+    ),
+    dict(
+        name="Python", code="sort+rotate", bytes=None,
+        color="#3776ab", logo="python",
+        source_code="s = list(s)\ns.sort(reverse=True)\ns.append(s.pop(0))\nreturn ''.join(s)",
+        bench=bench_python_sort,
+        script=(
+            '  start = time.perf_counter()\n'
+            '  for _ in range(N):\n'
+            '      maximum_odd_binary(input)  # list() + sort + pop/append + join\n'
+            '  elapsed = ...'
         ),
     ),
 ]
@@ -889,14 +1425,23 @@ def _fmt_time(secs):
     return f"{us / 1000:.2f} ms"
 
 
-def run_benchmarks_for_size(input_len, log_scripts=False):
-    """Run all solutions for a given input length. Returns list of result dicts."""
+def run_benchmarks_for_size(input_len, log_scripts=False, lang_filter=None):
+    """Run solutions for a given input length. If lang_filter is set, only run matching."""
     global INPUT_LEN
     INPUT_LEN = input_len
     _cpp_bin_cache.clear()
+    _rust_bin_cache.clear()
+    _rust_nightly_bin_cache.clear()
+    _d_bin_cache.clear()
+    _nim_bin_cache.clear()
 
     results = []
     for sol in SOLUTIONS:
+        if lang_filter and not any(
+            f.lower() in sol["name"].lower() or f.lower() in sol["code"].lower()
+            for f in lang_filter
+        ):
+            continue
         tag = f"{sol['name']}  {sol['code']}"
         print(f"  \u25b8 {tag}")
         if log_scripts and sol.get("script"):
@@ -922,6 +1467,7 @@ def run_benchmarks_for_size(input_len, log_scripts=False):
                 logo=sol.get("logo", ""), time=med,
                 all_times=times,
                 script=sol.get("script", ""),
+                source_code=sol.get("source_code", ""),
             ))
             print(f"    \u2192 median: {_fmt_time(med)}")
         else:
@@ -931,27 +1477,99 @@ def run_benchmarks_for_size(input_len, log_scripts=False):
     return results
 
 
+def _result_key(r):
+    return r["name"] + "\x00" + r["code"]
+
+
+def _load_cache():
+    """Load previous results from JSON cache."""
+    import json
+    if CACHE_FILE.exists():
+        try:
+            raw = json.loads(CACHE_FILE.read_text())
+            return {int(k): v for k, v in raw.items()}
+        except Exception:
+            pass
+    return {}
+
+
+def _save_cache(all_results):
+    """Persist results to JSON cache."""
+    import json
+    serializable = {}
+    for size, results in all_results.items():
+        serializable[str(size)] = [
+            {k: v for k, v in r.items() if k != "bench"}
+            for r in results
+        ]
+    CACHE_FILE.write_text(json.dumps(serializable, ensure_ascii=False, indent=2))
+
+
+def _merge_results(cached, fresh):
+    """Merge fresh results into cached, replacing entries with matching name+code."""
+    by_key = {_result_key(r): r for r in cached}
+    for r in fresh:
+        by_key[_result_key(r)] = r
+    merged = list(by_key.values())
+    merged.sort(key=lambda x: x["time"])
+    return merged
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Benchmark Maximum Odd Binary Number")
+    parser.add_argument(
+        "--lang", nargs="+", metavar="FILTER",
+        help="Only run solutions matching these names (e.g. --lang Python Rust). "
+             "Results merge into cached data from previous runs.",
+    )
+    parser.add_argument(
+        "--list", action="store_true",
+        help="List all available solution names and exit.",
+    )
+    args = parser.parse_args()
+
+    if args.list:
+        seen = set()
+        for sol in SOLUTIONS:
+            tag = f"{sol['name']:>10}  {sol['code']}"
+            if tag not in seen:
+                seen.add(tag)
+                print(tag)
+        return
+
+    lang_filter = args.lang
+
     print("=" * 60)
     print("  Maximum Odd Binary Number \u2014 Benchmark")
     print(f"  Sizes: {INPUT_SIZES}")
     print(f"  Iterations: {N_ITERS:,}  |  Runs: {N_RUNS} (median)")
+    if lang_filter:
+        print(f"  Filter: {', '.join(lang_filter)}")
     print("=" * 60)
+
+    cached = _load_cache()
+    if lang_filter and not cached:
+        print("\n  WARNING: No cached results found. Run once without --lang first")
+        print("  to benchmark all solutions, then use --lang to update specific ones.\n")
 
     all_results = {}
     for size in INPUT_SIZES:
         print(f"\n{'─' * 60}")
         print(f"  Input size: {size:,} chars")
         print(f"{'─' * 60}")
-        all_results[size] = run_benchmarks_for_size(
-            size, log_scripts=(size == INPUT_SIZES[0]),
+        fresh = run_benchmarks_for_size(
+            size,
+            log_scripts=(size == INPUT_SIZES[0]),
+            lang_filter=lang_filter,
         )
+        base = cached.get(size, [])
+        all_results[size] = _merge_results(base, fresh)
+
+    _save_cache(all_results)
 
     default_size = 1_000
-    if default_size in all_results:
-        results = all_results[default_size]
-    else:
-        results = next(iter(all_results.values()))
+    results = all_results.get(default_size) or next(iter(all_results.values()))
 
     print(f"\n{'=' * 60}")
     print(f"  Results for {default_size:,}-char input (fastest \u2192 slowest)")

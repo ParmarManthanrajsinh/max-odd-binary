@@ -4,4 +4,6 @@ __pycache__/
 *.pyc
 benchmark_*.png
 benchmark.html
+benchmark_cache.json
 logos/cpp.png
+aplcore
