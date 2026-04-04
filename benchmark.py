@@ -884,6 +884,7 @@ function switchTab(name) {{
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelector(`.tab[onclick*="${{name}}"]`).classList.add('active');
   document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('sizeSelect').style.display = name === 'detail' ? '' : 'none';
   if (name === 'summary') updateLineChart();
 }}
 
