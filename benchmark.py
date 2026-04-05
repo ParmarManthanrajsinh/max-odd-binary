@@ -5,31 +5,32 @@ Profiles solutions across array languages and C++.
 Generates a horizontal bar chart with language logos.
 """
 
-import subprocess
-import tempfile
+import os
+import re
 import shutil
 import statistics
-import os
+import subprocess
 import sys
-import re
+import tempfile
 import time
 from pathlib import Path
 
 # ─────────────────────────── Configuration ──────────────────────
 
-N_ITERS     = 50
-N_RUNS      = 5
-INPUT_LEN   = 1_000
+N_ITERS = 50
+N_RUNS = 5
+INPUT_LEN = 1_000
 INPUT_SIZES = [100, 1_000, 10_000, 100_000]
 
-ROOT        = Path(__file__).parent
-BUILD_DIR   = ROOT / "build"
-LOGOS_DIR   = ROOT / "logos"
-OUTPUT_PNG  = ROOT / "benchmark_results.png"
-CACHE_FILE  = ROOT / "benchmark_cache.json"
+ROOT = Path(__file__).parent
+BUILD_DIR = ROOT / "build"
+LOGOS_DIR = ROOT / "logos"
+OUTPUT_PNG = ROOT / "benchmark_results.png"
+CACHE_FILE = ROOT / "benchmark_cache.json"
 
 
 # ─────────────────────────── Helpers ────────────────────────────
+
 
 def find_cmd(*names):
     for n in names:
@@ -43,9 +44,9 @@ def parse_number(text):
     """Extract the last float from text, handling BQN ¯, J _, and TinyAPL ⏨."""
     if not text:
         return None
-    text = text.replace("\u00af", "-")   # BQN high minus
-    text = text.replace("\u2a28", "e")   # TinyAPL ⏨ scientific notation
-    text = text.replace("\u23e8", "e")   # TinyAPL ⏨ (alternate codepoint)
+    text = text.replace("\u00af", "-")  # BQN high minus
+    text = text.replace("\u2a28", "e")  # TinyAPL ⏨ scientific notation
+    text = text.replace("\u23e8", "e")  # TinyAPL ⏨ (alternate codepoint)
     for line in reversed(text.strip().splitlines()):
         cleaned = line.strip().replace("_", "-")
         m = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", cleaned)
@@ -60,8 +61,12 @@ def parse_number(text):
 def run_cmd(cmd, *, input_text=None, env=None, timeout=120):
     try:
         r = subprocess.run(
-            cmd, capture_output=True, text=True,
-            input=input_text, env=env, timeout=timeout,
+            cmd,
+            capture_output=True,
+            text=True,
+            input=input_text,
+            env=env,
+            timeout=timeout,
         )
         return r.stdout, r.stderr, r.returncode
     except subprocess.TimeoutExpired:
@@ -78,6 +83,7 @@ def write_temp(suffix, content):
 
 
 # ─────────────────────────── Benchmark: BQN ─────────────────────
+
 
 def bench_bqn():
     interp = find_cmd("cbqn", "bqn")
@@ -110,6 +116,7 @@ def bench_bqn_tacit():
 
 # ─────────────────────────── Benchmark: Uiua ────────────────────
 
+
 def bench_uiua():
     interp = find_cmd("uiua")
     if not interp:
@@ -136,7 +143,7 @@ def bench_uiua_count():
     code = (
         f'S \u2190 \u21af{INPUT_LEN} "01"\n'
         f"T \u2190 now\n"
-        f"\u2365(\u25cc\u02dc\u25bd\"101\"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1 S){N_ITERS}\n"
+        f'\u2365(\u25cc\u02dc\u25bd"101"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1 S){N_ITERS}\n'
         f"&p \u00f7{N_ITERS} -T now\n"
     )
     path = write_temp(".ua", code)
@@ -148,6 +155,7 @@ def bench_uiua_count():
 
 
 # ─────────────────────────── Benchmark: J ───────────────────────
+
 
 def bench_j():
     interp = find_cmd("jconsole", "ijconsole")
@@ -189,6 +197,7 @@ def bench_j_count():
 
 
 # ─────────────────────────── Benchmark: Dyalog APL ──────────────
+
 
 def bench_apl():
     interp = find_cmd("dyalog")
@@ -239,14 +248,13 @@ def bench_apl_count():
 
 # ─────────────────────────── Benchmark: TinyAPL ─────────────────
 
+
 def bench_tinyapl(solution_code):
     """TinyAPL: uses ⎕_Measure for native timing (returns seconds)."""
     interp = find_cmd("tinyapl")
     if not interp:
         return None
-    code = (
-        f"\u2395\u2190({solution_code}) \u2395_Measure {INPUT_LEN}\u2374'01'\n"
-    )
+    code = f"\u2395\u2190({solution_code}) \u2395_Measure {INPUT_LEN}\u2374'01'\n"
     path = write_temp(".apl", code)
     try:
         out, err, rc = run_cmd([interp, path])
@@ -260,13 +268,14 @@ def bench_tinyapl(solution_code):
 
 # ─────────────────────────── Benchmark: Kap ─────────────────────
 
+
 def bench_kap():
     """Kap: uses time:measureTime for native timing."""
     kap_path = Path.home() / "Downloads/kap/gui/bin/kap-jvm"
     if not kap_path.exists():
         return None
     expr = (
-        f"input \u2190 {INPUT_LEN}\u2374\"01\" \u25ca "
+        f'input \u2190 {INPUT_LEN}\u2374"01" \u25ca '
         f"time:measureTime {{ {{ 1\u233d\u2228 input }} \u00a8 \u2373{N_ITERS} }}"
     )
     out, err, rc = run_cmd([str(kap_path), "-n", "-E", expr], timeout=30)
@@ -303,7 +312,7 @@ def bench_cpp(name, func_body):
             "}\n\n"
             "int main() {\n"
             "  std::string input;\n"
-            f"  for (int i = 0; i < {INPUT_LEN // 2}; ++i) input += \"01\";\n"
+            f'  for (int i = 0; i < {INPUT_LEN // 2}; ++i) input += "01";\n'
             f"  constexpr int n = {N_ITERS};\n"
             "  std::string result;\n"
             "  auto start = std::chrono::high_resolution_clock::now();\n"
@@ -321,8 +330,7 @@ def bench_cpp(name, func_body):
 
         for std_flag in ["-std=c++23", "-std=c++20"]:
             _, cerr, crc = run_cmd(
-                [compiler, std_flag, "-O2",
-                 "-o", str(bin_path), str(src_path)]
+                [compiler, std_flag, "-O2", "-o", str(bin_path), str(src_path)]
             )
             if crc == 0:
                 break
@@ -332,6 +340,65 @@ def bench_cpp(name, func_body):
         _cpp_bin_cache[name] = str(bin_path)
 
     bin_path = _cpp_bin_cache[name]
+    if bin_path is None:
+        return None
+    out, _, rc = run_cmd([bin_path])
+    return parse_number(out) if rc == 0 else None
+
+
+# ─────────────────────────── Benchmark: D  ─────────────────────
+
+_d_bin_cache = {}
+
+
+def bench_d(name, func_body):
+    compiler = find_cmd("ldc2")
+    if not compiler:
+        return None
+
+    if name not in _d_bin_cache:
+        BUILD_DIR.mkdir(exist_ok=True)
+        src = (
+            "import core.time;\n"
+            "import std.algorithm;\n"
+            "import std.datetime.stopwatch;\n"
+            "import std.stdio;\n"
+            "import std.range;\n\n"
+            "auto maximumOddBinary(ubyte[] s){\n"
+            f"  {func_body}\n"
+            "  return s;\n"
+            "}\n\n"
+            "int main() {\n"
+            f"  ubyte[] input = iota({INPUT_LEN / 2}).map!(i => (i % 2 == 0) ? cast(ubyte)'0' : cast(ubyte)'1').array;\n"
+            f"  enum n = {N_ITERS};\n"
+            "  ubyte[] result;\n"
+            "  auto sw = StopWatch(AutoStart.yes);\n"
+            "  foreach(i; 0 .. n)\n"
+            "    result = maximumOddBinary(input);\n"
+            "  sw.stop();\n"
+            "  double dur = sw.peek.total!`nsecs`;\n"
+            "  writeln(dur / (1e9 * n));\n"
+            "  if (result.length == 0) return 1;\n"
+            "  return 0;\n"
+            "}\n"
+        )
+        src_path = BUILD_DIR / f"bench_{name}.d"
+        bin_path = BUILD_DIR / f"bench_{name}"
+        src_path.write_text(src)
+        _, cerr, crc = run_cmd(
+            [
+                compiler,
+                "-O3",
+                f"-of={str(bin_path)}",
+                str(src_path),
+            ]
+        )
+        if crc != 0:
+            _d_bin_cache[name] = None
+            return None
+        _d_bin_cache[name] = str(bin_path)
+
+    bin_path = _d_bin_cache[name]
     if bin_path is None:
         return None
     out, _, rc = run_cmd([bin_path])
@@ -365,16 +432,14 @@ def bench_rust(name, func_body):
             "        result = maximum_odd_binary(input.clone());\n"
             "    }\n"
             "    let elapsed = start.elapsed().as_secs_f64();\n"
-            "    println!(\"{}\", elapsed / n as f64);\n"
+            '    println!("{}", elapsed / n as f64);\n'
             "    if result.is_empty() { std::process::exit(1); }\n"
             "}\n"
         )
         src_path = BUILD_DIR / f"bench_{name}.rs"
         bin_path = BUILD_DIR / f"bench_{name}"
         src_path.write_text(src)
-        _, cerr, crc = run_cmd(
-            [compiler, "-O", "-o", str(bin_path), str(src_path)]
-        )
+        _, cerr, crc = run_cmd([compiler, "-O", "-o", str(bin_path), str(src_path)])
         if crc != 0:
             _rust_bin_cache[name] = None
             return None
@@ -415,7 +480,7 @@ def bench_rust_nightly(name, func_body):
             "        result = maximum_odd_binary(input.clone());\n"
             "    }\n"
             "    let elapsed = start.elapsed().as_secs_f64();\n"
-            "    println!(\"{}\", elapsed / n as f64);\n"
+            '    println!("{}", elapsed / n as f64);\n'
             "    if result.is_empty() { std::process::exit(1); }\n"
             "}\n"
         )
@@ -423,8 +488,16 @@ def bench_rust_nightly(name, func_body):
         bin_path = BUILD_DIR / f"bench_{name}"
         src_path.write_text(src)
         _, cerr, crc = run_cmd(
-            [rustup, "run", "nightly", "rustc", "-O",
-             "-o", str(bin_path), str(src_path)]
+            [
+                rustup,
+                "run",
+                "nightly",
+                "rustc",
+                "-O",
+                "-o",
+                str(bin_path),
+                str(src_path),
+            ]
         )
         if crc != 0:
             _rust_nightly_bin_cache[name] = None
@@ -470,15 +543,21 @@ def bench_nim(name, func_body):
             "    result = base\n"
             "    maximumOddBinary(result)\n"
             "  let elapsed = (getMonoTime() - start).inNanoseconds.float / 1e9\n"
-            '  echo elapsed / n.float\n\n'
+            "  echo elapsed / n.float\n\n"
             "main()\n"
         )
         src_path = BUILD_DIR / f"bench_{name}.nim"
         bin_path = BUILD_DIR / f"bench_{name}_nim"
         src_path.write_text(src)
         _, cerr, crc = run_cmd(
-            [compiler, "c", "-d:release", "--hints:off",
-             f"--out:{bin_path}", str(src_path)],
+            [
+                compiler,
+                "c",
+                "-d:release",
+                "--hints:off",
+                f"--out:{bin_path}",
+                str(src_path),
+            ],
             timeout=60,
         )
         if crc != 0:
@@ -494,6 +573,7 @@ def bench_nim(name, func_body):
 
 
 # ─────────────────────────── Benchmark: Julia ───────────────────
+
 
 def bench_julia():
     interp = find_cmd("julia")
@@ -521,6 +601,7 @@ def bench_julia():
 
 
 # ─────────────────────────── Benchmark: Python ──────────────────
+
 
 def bench_python_sort():
     interp = find_cmd("python3", "python")
@@ -550,8 +631,8 @@ def bench_python_sort():
         os.unlink(path)
 
 
-
 # ─────────────────────────── Logo: C++ ──────────────────────────
+
 
 def _make_cpp_logo():
     cpp_logo = LOGOS_DIR / "cpp.png"
@@ -565,7 +646,10 @@ def _make_cpp_logo():
         draw = ImageDraw.Draw(img)
         draw.rounded_rectangle(
             [4, 4, size - 4, size - 4],
-            radius=20, fill="#659ad2", outline="#ffffff", width=3,
+            radius=20,
+            fill="#659ad2",
+            outline="#ffffff",
+            width=3,
         )
         try:
             font = ImageFont.truetype(
@@ -574,8 +658,11 @@ def _make_cpp_logo():
         except Exception:
             font = ImageFont.load_default()
         draw.text(
-            (size // 2, size // 2), "C++",
-            fill="white", font=font, anchor="mm",
+            (size // 2, size // 2),
+            "C++",
+            fill="white",
+            font=font,
+            anchor="mm",
         )
         img.save(str(cpp_logo))
     except Exception:
@@ -584,19 +671,22 @@ def _make_cpp_logo():
 
 # ─────────────────────────── Chart ──────────────────────────────
 
+
 def generate_chart(results, output_path=OUTPUT_PNG):
     import matplotlib
+
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
     import matplotlib.image as mpimg
-    from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-    from matplotlib.font_manager import FontProperties
+    import matplotlib.pyplot as plt
     import numpy as np
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 
     _make_cpp_logo()
 
     BQN_FONT = Path.home() / ".local/share/fonts/BQN386.ttf"
     from matplotlib import font_manager as fm
+
     label_fp = None
     if BQN_FONT.exists():
         fm.fontManager.addfont(str(BQN_FONT))
@@ -607,21 +697,23 @@ def generate_chart(results, output_path=OUTPUT_PNG):
     times_us = [r["time"] * 1e6 for r in results]
     max_t = max(times_us) if times_us else 1
 
-    BG      = "#0d1117"
-    PANEL   = "#161b22"
-    GRID    = "#30363d"
-    TEXT    = "#e6edf3"
+    BG = "#0d1117"
+    PANEL = "#161b22"
+    GRID = "#30363d"
+    TEXT = "#e6edf3"
     SUBTEXT = "#8b949e"
 
-    plt.rcParams.update({
-        "figure.facecolor": BG,
-        "axes.facecolor":   PANEL,
-        "text.color":       TEXT,
-        "axes.labelcolor":  TEXT,
-        "xtick.color":      SUBTEXT,
-        "ytick.color":      SUBTEXT,
-        "font.size":        11,
-    })
+    plt.rcParams.update(
+        {
+            "figure.facecolor": BG,
+            "axes.facecolor": PANEL,
+            "text.color": TEXT,
+            "axes.labelcolor": TEXT,
+            "xtick.color": SUBTEXT,
+            "ytick.color": SUBTEXT,
+            "font.size": 11,
+        }
+    )
 
     fig_h = max(4.5, 0.85 * n + 2.0)
     fig, ax = plt.subplots(figsize=(14, fig_h))
@@ -629,9 +721,13 @@ def generate_chart(results, output_path=OUTPUT_PNG):
 
     y = np.arange(n)
     bars = ax.barh(
-        y, times_us, height=0.55,
+        y,
+        times_us,
+        height=0.55,
         color=[r["color"] for r in results],
-        edgecolor="none", alpha=0.92, zorder=3,
+        edgecolor="none",
+        alpha=0.92,
+        zorder=3,
     )
 
     for i, (bar, t_us) in enumerate(zip(bars, times_us)):
@@ -644,8 +740,12 @@ def generate_chart(results, output_path=OUTPUT_PNG):
         ax.text(
             bar.get_width() + max_t * 0.015,
             bar.get_y() + bar.get_height() / 2,
-            lbl, va="center", ha="left",
-            fontsize=11, color=TEXT, fontweight="bold",
+            lbl,
+            va="center",
+            ha="left",
+            fontsize=11,
+            color=TEXT,
+            fontweight="bold",
         )
 
     labels = []
@@ -669,11 +769,13 @@ def generate_chart(results, output_path=OUTPUT_PNG):
             zoom = 22 / img.shape[0]
             oi = OffsetImage(img, zoom=zoom)
             ab = AnnotationBbox(
-                oi, (0, i),
+                oi,
+                (0, i),
                 xybox=(-18, 0),
                 xycoords=("axes fraction", "data"),
                 boxcoords="offset points",
-                frameon=False, pad=0,
+                frameon=False,
+                pad=0,
             )
             ax.add_artist(ab)
         except Exception:
@@ -682,25 +784,30 @@ def generate_chart(results, output_path=OUTPUT_PNG):
     ax.set_xlabel("Time per call (\u03bcs)", fontsize=12, labelpad=10)
     ax.set_title(
         "Maximum Odd Binary Number \u2014 Benchmark\n"
-        f"Input: {INPUT_LEN}-char \"010101\u2026\"  \u00b7  "
+        f'Input: {INPUT_LEN}-char "010101\u2026"  \u00b7  '
         f"{N_ITERS:,} iters  \u00b7  median of {N_RUNS} runs",
-        fontsize=14, fontweight="bold", pad=15, color="#ffffff",
+        fontsize=14,
+        fontweight="bold",
+        pad=15,
+        color="#ffffff",
     )
     for spine in ax.spines.values():
         spine.set_color(GRID)
     ax.grid(axis="x", linestyle="--", alpha=0.3, color=GRID, zorder=0)
     ax.set_xlim(0, max_t * 1.22)
 
-
     plt.savefig(
-        str(output_path), dpi=150,
-        bbox_inches="tight", facecolor=fig.get_facecolor(),
+        str(output_path),
+        dpi=150,
+        bbox_inches="tight",
+        facecolor=fig.get_facecolor(),
     )
     plt.close(fig)
     print(f"  Chart saved to {output_path}")
 
 
 # ─────────────────────────── Interactive HTML ───────────────────
+
 
 def generate_html(all_results, output_path):
     """Create a self-contained interactive HTML benchmark page with multi-size support."""
@@ -725,8 +832,10 @@ def generate_html(all_results, output_path):
             key = r["name"] + "\x00" + r["code"]
             if key not in sol_map:
                 sol_map[key] = dict(
-                    name=r["name"], code=r["code"],
-                    bytes=r.get("bytes"), color=r["color"],
+                    name=r["name"],
+                    code=r["code"],
+                    bytes=r.get("bytes"),
+                    color=r["color"],
                     logo=_logo_b64(r.get("logo", "")),
                     script=r.get("script", ""),
                     source_code=r.get("source_code", ""),
@@ -826,7 +935,7 @@ def generate_html(all_results, output_path):
 <h1>Maximum Odd Binary Number \u2014 Benchmark</h1>
 <div class="subtitle">
   {N_ITERS:,} iterations &middot; median of {N_RUNS} runs &middot;
-  sizes: {', '.join(f'{s:,}' for s in sizes)} chars
+  sizes: {", ".join(f"{s:,}" for s in sizes)} chars
 </div>
 
 <div class="tabs">
@@ -837,7 +946,7 @@ def generate_html(all_results, output_path):
 <div class="controls-row">
   <div class="controls" id="controls"></div>
   <select id="sizeSelect" onchange="onSizeChange()">
-    {chr(10).join(f'    <option value="{s}"' + (' selected' if s == 1000 else '') + f'>{s:,} chars</option>' for s in sizes)}
+    {chr(10).join(f'    <option value="{s}"' + (" selected" if s == 1000 else "") + f">{s:,} chars</option>" for s in sizes)}
   </select>
 </div>
 
@@ -1088,95 +1197,125 @@ updateLineChart();
 
 SOLUTIONS = [
     dict(
-        name="BQN", code="1\u233d\u2228", bytes=3,
-        color="#2b7067", logo="bqn",
+        name="BQN",
+        code="1\u233d\u2228",
+        bytes=3,
+        color="#2b7067",
+        logo="bqn",
         source_code="1\u233d\u2228",
         bench=bench_bqn,
         script=(
             '  \u2022Out \u2022Fmt N(1\u233d\u2228)\u2022_timed L\u294a"01"\n'
-            '              ^^^^^^^^^^^^  \u2190 only this is timed\n'
-            '  \u2022_timed creates the input once, then runs (1\u233d\u2228) on it N times'
+            "              ^^^^^^^^^^^^  \u2190 only this is timed\n"
+            "  \u2022_timed creates the input once, then runs (1\u233d\u2228) on it N times"
         ),
     ),
     dict(
-        name="BQN", code="count+construct", bytes=None,
-        color="#2b7067", logo="bqn",
+        name="BQN",
+        code="count+construct",
+        bytes=None,
+        color="#2b7067",
+        logo="bqn",
         source_code="{n\u2190+\u00b4'1'=\U0001d569\n (\"1\"/\u02dcn-1)\u223e(\"0\"/\u02dc(\u2260\U0001d569)-n)\u223e'1'}",
         bench=bench_bqn_count,
         script=(
-            '  {n\u2190+\u00b4\'1\'=\U0001d569 \u22c4 ("1"/\u02dcn-1)\u223e("0"/\u02dc(\u2260\U0001d569)-n)\u223e\'1\'}\n'
-            '  O(n) counting approach \u2014 no sort, builds result from char counts'
+            "  {n\u2190+\u00b4'1'=\U0001d569 \u22c4 (\"1\"/\u02dcn-1)\u223e(\"0\"/\u02dc(\u2260\U0001d569)-n)\u223e'1'}\n"
+            "  O(n) counting approach \u2014 no sort, builds result from char counts"
         ),
     ),
     dict(
-        name="BQN", code="tacit count", bytes=None,
-        color="#2b7067", logo="bqn",
+        name="BQN",
+        code="tacit count",
+        bytes=None,
+        color="#2b7067",
+        logo="bqn",
         source_code="\"101\"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4'1'\u22b8=))",
         bench=bench_bqn_tacit,
         script=(
-            '  "101"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4\'1\'\u22b8=))\n'
-            '  O(n) tacit counting \u2014 same approach, point-free style'
+            "  \"101\"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4'1'\u22b8=))\n"
+            "  O(n) tacit counting \u2014 same approach, point-free style"
         ),
     ),
     dict(
-        name="Kap", code="1\u233d\u2228", bytes=3,
-        color="#55a630", logo="kap",
+        name="Kap",
+        code="1\u233d\u2228",
+        bytes=3,
+        color="#55a630",
+        logo="kap",
         source_code="1\u233d\u2228",
         bench=bench_kap,
         script=(
             '  input \u2190 L\u2374"01"                          \u2190 not timed\n'
-            '  time:measureTime { { 1\u233d\u2228 input } \u00a8 \u2373N }  \u2190 timed: apply fn N times'
+            "  time:measureTime { { 1\u233d\u2228 input } \u00a8 \u2373N }  \u2190 timed: apply fn N times"
         ),
     ),
     dict(
-        name="Uiua", code="\u21bb1\u21cc\u2346", bytes=4,
-        color="#ea1999", logo="uiua",
+        name="Uiua",
+        code="\u21bb1\u21cc\u2346",
+        bytes=4,
+        color="#ea1999",
+        logo="uiua",
         source_code="\u21bb1\u21cc\u2346",
         bench=bench_uiua,
         script=(
             '  S \u2190 \u21afL "01"              \u2190 not timed\n'
-            '  T \u2190 now\n'
-            '  \u2365(\u25cc\u21bb1\u21cc\u2346 S)N            \u2190 timed: apply fn N times, pop result\n'
-            '  &p \u00f7N -T now'
+            "  T \u2190 now\n"
+            "  \u2365(\u25cc\u21bb1\u21cc\u2346 S)N            \u2190 timed: apply fn N times, pop result\n"
+            "  &p \u00f7N -T now"
         ),
     ),
     dict(
-        name="Uiua", code="count+construct", bytes=None,
-        color="#ea1999", logo="uiua",
-        source_code="\u02dc\u25bd\"101\"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1",
+        name="Uiua",
+        code="count+construct",
+        bytes=None,
+        color="#ea1999",
+        logo="uiua",
+        source_code='\u02dc\u25bd"101"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1',
         bench=bench_uiua_count,
         script=(
             '  \u02dc\u25bd"101"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1\n'
-            '  O(n) counting approach \u2014 no sort'
+            "  O(n) counting approach \u2014 no sort"
         ),
     ),
     dict(
-        name="TinyAPL", code="1\u2218\u2296\u2218\u22b5", bytes=5,
-        color="#9b59b6", logo="tinyapl",
+        name="TinyAPL",
+        code="1\u2218\u2296\u2218\u22b5",
+        bytes=5,
+        color="#9b59b6",
+        logo="tinyapl",
         source_code="1\u2218\u2296\u2218\u22b5",
         bench=lambda: bench_tinyapl("1\u2218\u2296\u2218\u22b5"),
         script=(
-            '  \u2395\u2190(1\u2218\u2296\u2218\u22b5) \u2395_Measure L\u2374\'01\'\n'
-            '  \u2395_Measure times F applied to the argument (1 call)'
+            "  \u2395\u2190(1\u2218\u2296\u2218\u22b5) \u2395_Measure L\u2374'01'\n"
+            "  \u2395_Measure times F applied to the argument (1 call)"
         ),
     ),
     dict(
-        name="TinyAPL", code="1\u00ab\u2296\u00bb\u22b5", bytes=5,
-        color="#9b59b6", logo="tinyapl",
+        name="TinyAPL",
+        code="1\u00ab\u2296\u00bb\u22b5",
+        bytes=5,
+        color="#9b59b6",
+        logo="tinyapl",
         source_code="1\u00ab\u2296\u00bb\u22b5",
         bench=lambda: bench_tinyapl("1\u00ab\u2296\u00bb\u22b5"),
-        script='  \u2395\u2190(1\u00ab\u2296\u00bb\u22b5) \u2395_Measure L\u2374\'01\'',
+        script="  \u2395\u2190(1\u00ab\u2296\u00bb\u22b5) \u2395_Measure L\u2374'01'",
     ),
     dict(
-        name="TinyAPL", code="\u2985" "1\u2296\u22b5" "\u2986", bytes=5,
-        color="#9b59b6", logo="tinyapl",
+        name="TinyAPL",
+        code="\u29851\u2296\u22b5\u2986",
+        bytes=5,
+        color="#9b59b6",
+        logo="tinyapl",
         source_code="\u29851\u2296\u22b5\u2986",
-        bench=lambda: bench_tinyapl("\u2985" "1\u2296\u22b5" "\u2986"),
-        script='  \u2395\u2190(\u29851\u2296\u22b5\u2986) \u2395_Measure L\u2374\'01\'',
+        bench=lambda: bench_tinyapl("\u29851\u2296\u22b5\u2986"),
+        script="  \u2395\u2190(\u29851\u2296\u22b5\u2986) \u2395_Measure L\u2374'01'",
     ),
     dict(
-        name="J", code="1|.\\:~", bytes=6,
-        color="#2ad4ff", logo="j",
+        name="J",
+        code="1|.\\:~",
+        bytes=6,
+        color="#2ad4ff",
+        logo="j",
         source_code="1|.\\:~",
         bench=bench_j,
         script=(
@@ -1186,8 +1325,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="J", code="tacit count", bytes=None,
-        color="#2ad4ff", logo="j",
+        name="J",
+        code="tacit count",
+        bytes=None,
+        color="#2ad4ff",
+        logo="j",
         source_code="'101'#~1,~#(<:@],-)\n ([:+/'1'=[)",
         bench=bench_j_count,
         script=(
@@ -1196,30 +1338,39 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="APL", code="1\u233d\u2282\u2364\u2352\u235b\u2337", bytes=7,
-        color="#24a148", logo="apl",
+        name="APL",
+        code="1\u233d\u2282\u2364\u2352\u235b\u2337",
+        bytes=7,
+        color="#24a148",
+        logo="apl",
         source_code="1\u233d\u2282\u2364\u2352\u235b\u2337",
         bench=bench_apl,
         script=(
-            '  input\u2190L\u2374\'01\'                         \u2190 not timed\n'
-            '  t\u21902\u2283\u2395AI\n'
-            '  _\u2190{(1\u233d\u2282\u2364\u2352\u235b\u2337)input}\u00a8\u2373N        \u2190 timed: apply fn N times\n'
-            '  \u2395\u2190((2\u2283\u2395AI)-t)\u00f71000\u00d7N'
+            "  input\u2190L\u2374'01'                         \u2190 not timed\n"
+            "  t\u21902\u2283\u2395AI\n"
+            "  _\u2190{(1\u233d\u2282\u2364\u2352\u235b\u2337)input}\u00a8\u2373N        \u2190 timed: apply fn N times\n"
+            "  \u2395\u2190((2\u2283\u2395AI)-t)\u00f71000\u00d7N"
         ),
     ),
     dict(
-        name="APL", code="tacit count", bytes=None,
-        color="#24a148", logo="apl",
+        name="APL",
+        code="tacit count",
+        bytes=None,
+        color="#24a148",
+        logo="apl",
         source_code="'101'/\u23681,\u2368\u2262\n ((1-\u2368\u22a2),-)(+/'1'\u2218=)",
         bench=bench_apl_count,
         script=(
             "  Mob\u2190'101'/\u23681,\u2368\u2262((1-\u2368\u22a2),-)( +/'1'\u2218=)\n"
-            '  _\u2190{Mob input}\u00a8\u2373N        \u2190 O(n) counting, no sort'
+            "  _\u2190{Mob input}\u00a8\u2373N        \u2190 O(n) counting, no sort"
         ),
     ),
     dict(
-        name="C++", code="partition+rotate", bytes=None,
-        color="#659ad2", logo="cpp_logo",
+        name="C++",
+        code="partition+rotate",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
         source_code="auto f(string s) -> string {\n  partition(s, [](auto c){ return c=='1'; });\n  rotate(s, next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "partition_rotate",
@@ -1227,16 +1378,19 @@ SOLUTIONS = [
             "  std::ranges::rotate(s, std::next(s.begin()));",
         ),
         script=(
-            '  // input created before timing\n'
-            '  auto start = high_resolution_clock::now();\n'
-            '  for (int i = 0; i < N; ++i)\n'
-            '    result = maximum_odd_binary(input);  // pass-by-value copy + partition + rotate\n'
-            '  auto end = high_resolution_clock::now();'
+            "  // input created before timing\n"
+            "  auto start = high_resolution_clock::now();\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);  // pass-by-value copy + partition + rotate\n"
+            "  auto end = high_resolution_clock::now();"
         ),
     ),
     dict(
-        name="C++", code="sort+rotate", bytes=None,
-        color="#659ad2", logo="cpp_logo",
+        name="C++",
+        code="sort+rotate",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
         source_code="auto f(string s) -> string {\n  sort(s, greater{});\n  rotate(s, next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "sort_rotate",
@@ -1244,16 +1398,19 @@ SOLUTIONS = [
             "  std::ranges::rotate(s, std::next(s.begin()));",
         ),
         script=(
-            '  // input created before timing\n'
-            '  auto start = high_resolution_clock::now();\n'
-            '  for (int i = 0; i < N; ++i)\n'
-            '    result = maximum_odd_binary(input);  // pass-by-value copy + sort + rotate\n'
-            '  auto end = high_resolution_clock::now();'
+            "  // input created before timing\n"
+            "  auto start = high_resolution_clock::now();\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);  // pass-by-value copy + sort + rotate\n"
+            "  auto end = high_resolution_clock::now();"
         ),
     ),
     dict(
-        name="C++", code="count+construct", bytes=None,
-        color="#659ad2", logo="cpp_logo",
+        name="C++",
+        code="count+construct",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
         source_code="auto f(string s) -> string {\n  auto n = ranges::count(s, '1');\n  return string(n-1,'1')\n    + string(s.size()-n,'0') + '1';\n}",
         bench=lambda: bench_cpp(
             "count_construct",
@@ -1261,46 +1418,53 @@ SOLUTIONS = [
             "  s = std::string(n - 1, '1') + std::string(s.size() - n, '0') + '1';",
         ),
         script=(
-            '  // O(n) count + construct, no sort\n'
-            '  for (int i = 0; i < N; ++i)\n'
-            '    result = maximum_odd_binary(input);'
+            "  // O(n) count + construct, no sort\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);"
         ),
     ),
     dict(
-        name="Rust", code="sort+rotate", bytes=None,
-        color="#dea584", logo="rust_logo_darkmode",
+        name="Rust",
+        code="sort+rotate",
+        bytes=None,
+        color="#dea584",
+        logo="rust_logo_darkmode",
         source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  s.sort_unstable_by(|a,b| b.cmp(a));\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust(
             "rust_sort",
-            "s.sort_unstable_by(|a, b| b.cmp(a));\n"
-            "    s.rotate_left(1);",
+            "s.sort_unstable_by(|a, b| b.cmp(a));\n    s.rotate_left(1);",
         ),
         script=(
-            '  let start = Instant::now();\n'
-            '  for _ in 0..N {\n'
-            '      result = maximum_odd_binary(input.clone());  // clone + sort + rotate\n'
-            '  }'
+            "  let start = Instant::now();\n"
+            "  for _ in 0..N {\n"
+            "      result = maximum_odd_binary(input.clone());  // clone + sort + rotate\n"
+            "  }"
         ),
     ),
     dict(
-        name="Rust", code="partition+rotate", bytes=None,
-        color="#dea584", logo="rust_logo_darkmode",
+        name="Rust",
+        code="partition+rotate",
+        bytes=None,
+        color="#dea584",
+        logo="rust_logo_darkmode",
         source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  s.iter_mut()\n    .partition_in_place(|c| *c == b'1');\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust_nightly(
             "rust_partition",
-            "s.iter_mut().partition_in_place(|c| *c == b'1');\n"
-            "    s.rotate_left(1);",
+            "s.iter_mut().partition_in_place(|c| *c == b'1');\n    s.rotate_left(1);",
         ),
         script=(
-            '  #![feature(iter_partition_in_place)]  // nightly\n'
-            '  for _ in 0..N {\n'
-            '      result = maximum_odd_binary(input.clone());  // clone + partition + rotate\n'
-            '  }'
+            "  #![feature(iter_partition_in_place)]  // nightly\n"
+            "  for _ in 0..N {\n"
+            "      result = maximum_odd_binary(input.clone());  // clone + partition + rotate\n"
+            "  }"
         ),
     ),
     dict(
-        name="Rust", code="count+construct", bytes=None,
-        color="#dea584", logo="rust_logo_darkmode",
+        name="Rust",
+        code="count+construct",
+        bytes=None,
+        color="#dea584",
+        logo="rust_logo_darkmode",
         source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  let n = s.iter()\n    .filter(|&&c| c==b'1').count();\n  let len = s.len();\n  s.clear();\n  s.extend(repeat(b'1').take(n-1));\n  s.extend(repeat(b'0').take(len-n));\n  s.push(b'1');\n  s\n}",
         bench=lambda: bench_rust(
             "rust_count",
@@ -1312,56 +1476,121 @@ SOLUTIONS = [
             "    s.push(b'1');",
         ),
         script=(
-            '  // O(n) count + construct, no sort\n'
-            '  for _ in 0..N {\n'
-            '      result = maximum_odd_binary(input.clone());\n'
-            '  }'
+            "  // O(n) count + construct, no sort\n"
+            "  for _ in 0..N {\n"
+            "      result = maximum_odd_binary(input.clone());\n"
+            "  }"
         ),
     ),
     dict(
-        name="Nim", code="sort+rotate", bytes=None,
-        color="#ffe953", logo="nim_logo",
+        name="Nim",
+        code="sort+rotate",
+        bytes=None,
+        color="#ffe953",
+        logo="nim_logo",
         source_code="proc f(s: var string) =\n  sort(s, order = Descending)\n  rotateLeft(s, 1)",
         bench=lambda: bench_nim(
             "nim_sort",
-            "sort(s, order = Descending)\n"
-            "  rotateLeft(s, 1)",
+            "sort(s, order = Descending)\n  rotateLeft(s, 1)",
         ),
         script=(
-            '  let start = getMonoTime()\n'
-            '  for i in 0 ..< N:\n'
-            '      result = base; maximumOddBinary(result)  // copy + sort + rotate\n'
-            '  let elapsed = ...'
+            "  let start = getMonoTime()\n"
+            "  for i in 0 ..< N:\n"
+            "      result = base; maximumOddBinary(result)  // copy + sort + rotate\n"
+            "  let elapsed = ..."
         ),
     ),
     dict(
-        name="Julia", code="sort+circshift", bytes=None,
-        color="#9558b2", logo="julia_logo_darkmode",
+        name="D",
+        code="sort+rotate",
+        bytes=None,
+        color="#b63838",
+        logo="dlang_logo",
+        source_code="auto f(ubyte[] s) {\n  s.sort!`a > b`;\n  bringToFrint(s[0..1], s[1..$]);\n  return s;\n}",
+        bench=lambda: bench_d(
+            "d_sort",
+            "s.sort!`a > b`;\n    bringToFront(s[0..1],s[1..$]);",
+        ),
+        script=(
+            "  auto start = StopWatch(AutoStart.yes);\n"
+            "  foreach(i;0 .. N) {\n"
+            "      result = maximumOddBinary(input); // sort + rotate\n"
+            "  }"
+        ),
+    ),
+    dict(
+        name="D",
+        code="partition+rotate",
+        bytes=None,
+        color="#b63838",
+        logo="d_logo",
+        source_code="auto f(ubyte[] s) {\n  partition!(c => c == '1')(s);\n  bringToFront(s[0 .. 1], s[1 .. $]);\n  return s;\n}",
+        bench=lambda: bench_d(
+            "d_partition",
+            "partition!(c => c == '1')(s);\n     bringToFront(s[0 .. 1], s[1 .. $]);",
+        ),
+        script=(
+            "  foreach(i;0 .. N) {\n"
+            "      result = maximumOddBinary(input); // partition + rotate\n"
+            "  }"
+        ),
+    ),
+    dict(
+        name="D",
+        code="count+construct",
+        bytes=None,
+        color="#b63838",
+        logo="d_logo",
+        source_code="auto f(ubyte[] s) {\n  auto n = s.count('1') - 1;\n  s[0 .. n].fill('1');\n  s[n .. $ - 1].fill('0');\n  s[$ - 1] = '1';\n  return s\n}",
+        bench=lambda: bench_d(
+            "d_count",
+            "    auto n = s.count('1') - 1;\n"
+            "    s[0 .. n].fill('1');\n"
+            "    s[n .. $ - 1].fill('0');\n"
+            "    s[$ - 1] = '1';",
+        ),
+        script=(
+            "  // O(n) count + construct, no sort\n"
+            "  foreach(i;0 .. N) {\n"
+            "      result = maximumOddBinary(input);\n"
+            "  }"
+        ),
+    ),
+    dict(
+        name="Julia",
+        code="sort+circshift",
+        bytes=None,
+        color="#9558b2",
+        logo="julia_logo_darkmode",
         source_code="function f(s)\n  v = sort(s, rev=true)\n  circshift(v, -1)\nend",
         bench=bench_julia,
         script=(
-            '  maximum_odd_binary(input)  # warmup\n'
-            '  t = @elapsed for _ in 1:N\n'
-            '      maximum_odd_binary(input)  # sort + circshift (allocates)\n'
-            '  end'
+            "  maximum_odd_binary(input)  # warmup\n"
+            "  t = @elapsed for _ in 1:N\n"
+            "      maximum_odd_binary(input)  # sort + circshift (allocates)\n"
+            "  end"
         ),
     ),
     dict(
-        name="Python", code="sort+rotate", bytes=None,
-        color="#3776ab", logo="python_logo",
+        name="Python",
+        code="sort+rotate",
+        bytes=None,
+        color="#3776ab",
+        logo="python_logo",
         source_code="def f(s):\n  s = list(s)\n  s.sort(reverse=True)\n  s.append(s.pop(0))\n  return ''.join(s)",
         bench=bench_python_sort,
         script=(
-            '  start = time.perf_counter()\n'
-            '  for _ in range(N):\n'
-            '      maximum_odd_binary(input)  # list() + sort + pop/append + join\n'
-            '  elapsed = ...'
+            "  start = time.perf_counter()\n"
+            "  for _ in range(N):\n"
+            "      maximum_odd_binary(input)  # list() + sort + pop/append + join\n"
+            "  elapsed = ..."
         ),
     ),
 ]
 
 
 # ─────────────────────────── Main ───────────────────────────────
+
 
 def _fmt_time(secs):
     us = secs * 1e6
@@ -1377,6 +1606,7 @@ def run_benchmarks_for_size(input_len, log_scripts=False, lang_filter=None):
     global INPUT_LEN
     INPUT_LEN = input_len
     _cpp_bin_cache.clear()
+    _d_bin_cache.clear()
     _rust_bin_cache.clear()
     _rust_nightly_bin_cache.clear()
     _nim_bin_cache.clear()
@@ -1407,14 +1637,19 @@ def run_benchmarks_for_size(input_len, log_scripts=False, lang_filter=None):
 
         if times:
             med = statistics.median(times)
-            results.append(dict(
-                name=sol["name"], code=sol["code"],
-                bytes=sol.get("bytes"), color=sol["color"],
-                logo=sol.get("logo", ""), time=med,
-                all_times=times,
-                script=sol.get("script", ""),
-                source_code=sol.get("source_code", ""),
-            ))
+            results.append(
+                dict(
+                    name=sol["name"],
+                    code=sol["code"],
+                    bytes=sol.get("bytes"),
+                    color=sol["color"],
+                    logo=sol.get("logo", ""),
+                    time=med,
+                    all_times=times,
+                    script=sol.get("script", ""),
+                    source_code=sol.get("source_code", ""),
+                )
+            )
             print(f"    \u2192 median: {_fmt_time(med)}")
         else:
             print(f"    \u2717 skipped")
@@ -1430,6 +1665,7 @@ def _result_key(r):
 def _load_cache():
     """Load previous results from JSON cache."""
     import json
+
     if CACHE_FILE.exists():
         try:
             raw = json.loads(CACHE_FILE.read_text())
@@ -1442,11 +1678,11 @@ def _load_cache():
 def _save_cache(all_results):
     """Persist results to JSON cache."""
     import json
+
     serializable = {}
     for size, results in all_results.items():
         serializable[str(size)] = [
-            {k: v for k, v in r.items() if k != "bench"}
-            for r in results
+            {k: v for k, v in r.items() if k != "bench"} for r in results
         ]
     CACHE_FILE.write_text(json.dumps(serializable, ensure_ascii=False, indent=2))
 
@@ -1463,18 +1699,23 @@ def _merge_results(cached, fresh):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Benchmark Maximum Odd Binary Number")
     parser.add_argument(
-        "--lang", nargs="+", metavar="FILTER",
+        "--lang",
+        nargs="+",
+        metavar="FILTER",
         help="Only run solutions matching these names (e.g. --lang Python Rust). "
-             "Results merge into cached data from previous runs.",
+        "Results merge into cached data from previous runs.",
     )
     parser.add_argument(
-        "--list", action="store_true",
+        "--list",
+        action="store_true",
         help="List all available solution names and exit.",
     )
     parser.add_argument(
-        "--html-only", action="store_true",
+        "--html-only",
+        action="store_true",
         help="Rebuild HTML from cached results without running benchmarks.",
     )
     args = parser.parse_args()
@@ -1515,7 +1756,9 @@ def main():
     cached = _load_cache()
     if lang_filter and not cached:
         print("\n  WARNING: No cached results found. Run once without --lang first")
-        print("  to benchmark all solutions, then use --lang to update specific ones.\n")
+        print(
+            "  to benchmark all solutions, then use --lang to update specific ones.\n"
+        )
 
     all_results = {}
     for size in INPUT_SIZES:
@@ -1540,7 +1783,9 @@ def main():
     print("=" * 60)
     for i, r in enumerate(results, 1):
         b = f"({r['bytes']}B)" if r.get("bytes") else ""
-        print(f"  {i:>2}. {r['name']:>10}  {r['code']:<18} {b:<6} {_fmt_time(r['time']):>10}")
+        print(
+            f"  {i:>2}. {r['name']:>10}  {r['code']:<18} {b:<6} {_fmt_time(r['time']):>10}"
+        )
 
     print("\nGenerating outputs...")
     generate_chart(results, ROOT / "benchmark_all.png")
