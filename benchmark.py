@@ -913,8 +913,8 @@ def generate_html(all_results, output_path):
   #presentation-overlay.active {{ display: block; }}
   #presentation-overlay .pres-logo {{
     position: absolute; top: 48px; left: 48px;
-    max-width: min(10vw, 180px); max-height: min(10vw, 180px);
-    min-width: 100px;
+    max-width: min(14vw, 260px); max-height: min(14vw, 260px);
+    min-width: 140px;
     object-fit: contain;
   }}
   #presentation-overlay .pres-code-wrap {{
@@ -1444,7 +1444,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="partition+rotate", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="auto f(std::string s) -> std::string {\n  std::ranges::partition(s, [](auto c){ return c=='1'; });\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
+        source_code="auto mob(std::string s) -> std::string {\n  std::ranges::partition(s, [](auto c){ return c=='1'; });\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "partition_rotate",
             "std::ranges::partition(s, [](auto c) { return c == '1'; });\n"
@@ -1461,7 +1461,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="sort+rotate", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="auto f(std::string s) -> std::string {\n  std::ranges::sort(s, std::greater{});\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
+        source_code="auto mob(std::string s) -> std::string {\n  std::ranges::sort(s, std::greater{});\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "sort_rotate",
             "std::ranges::sort(s, std::greater{});\n"
@@ -1478,7 +1478,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="count+construct", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="auto f(std::string s) -> std::string {\n  auto n = std::ranges::count(s, '1');\n  return std::string(n-1,'1')\n    + std::string(s.size()-n,'0') + '1';\n}",
+        source_code="auto mob(std::string s) -> std::string {\n  auto n = std::ranges::count(s, '1');\n  return std::string(n-1,'1')\n    + std::string(s.size()-n,'0') + '1';\n}",
         bench=lambda: bench_cpp(
             "count_construct",
             "auto n = std::ranges::count(s, '1');\n"
@@ -1493,7 +1493,7 @@ SOLUTIONS = [
     dict(
         name="Rust", code="sort+rotate", bytes=None,
         color="#dea584", logo="rust_logo_darkmode",
-        source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  s.sort_unstable_by(|a,b| b.cmp(a));\n  s.rotate_left(1);\n  s\n}",
+        source_code="fn mob(mut s: Vec<u8>) -> Vec<u8> {\n  s.sort_unstable_by(|a,b| b.cmp(a));\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust(
             "rust_sort",
             "s.sort_unstable_by(|a, b| b.cmp(a));\n"
@@ -1509,7 +1509,7 @@ SOLUTIONS = [
     dict(
         name="Rust", code="partition+rotate", bytes=None,
         color="#dea584", logo="rust_logo_darkmode",
-        source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  s.iter_mut()\n    .partition_in_place(|c| *c == b'1');\n  s.rotate_left(1);\n  s\n}",
+        source_code="fn mob(mut s: Vec<u8>) -> Vec<u8> {\n  s.iter_mut()\n    .partition_in_place(|c| *c == b'1');\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust_nightly(
             "rust_partition",
             "s.iter_mut().partition_in_place(|c| *c == b'1');\n"
@@ -1525,7 +1525,7 @@ SOLUTIONS = [
     dict(
         name="Rust", code="count+construct", bytes=None,
         color="#dea584", logo="rust_logo_darkmode",
-        source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  let n = s.iter()\n    .filter(|&&c| c==b'1').count();\n  let len = s.len();\n  s.clear();\n  s.extend(repeat(b'1').take(n-1));\n  s.extend(repeat(b'0').take(len-n));\n  s.push(b'1');\n  s\n}",
+        source_code="fn mob(mut s: Vec<u8>) -> Vec<u8> {\n  let n = s.iter()\n    .filter(|&&c| c==b'1').count();\n  let len = s.len();\n  s.clear();\n  s.extend(repeat(b'1').take(n-1));\n  s.extend(repeat(b'0').take(len-n));\n  s.push(b'1');\n  s\n}",
         bench=lambda: bench_rust(
             "rust_count",
             "let n = s.iter().filter(|&&c| c == b'1').count();\n"
@@ -1545,7 +1545,7 @@ SOLUTIONS = [
     dict(
         name="Nim", code="sort+rotate", bytes=None,
         color="#ffe953", logo="nim_logo",
-        source_code="proc f(s: var string) =\n  sort(s, order = Descending)\n  rotateLeft(s, 1)",
+        source_code="proc mob(s: var string) =\n  sort(s, order = Descending)\n  rotateLeft(s, 1)",
         bench=lambda: bench_nim(
             "nim_sort",
             "sort(s, order = Descending)\n"
@@ -1561,7 +1561,7 @@ SOLUTIONS = [
     dict(
         name="Julia", code="sort+circshift", bytes=None,
         color="#9558b2", logo="julia_logo_darkmode",
-        source_code="function f(s)\n  v = sort(s, rev=true)\n  circshift(v, -1)\nend",
+        source_code="function mob(s)\n  v = sort(s, rev=true)\n  circshift(v, -1)\nend",
         bench=bench_julia,
         script=(
             '  maximum_odd_binary(input)  # warmup\n'
@@ -1573,7 +1573,7 @@ SOLUTIONS = [
     dict(
         name="Python", code="sort+rotate", bytes=None,
         color="#3776ab", logo="python_logo",
-        source_code="def f(s):\n  s = list(s)\n  s.sort(reverse=True)\n  s.append(s.pop(0))\n  return ''.join(s)",
+        source_code="def mob(s):\n  s = list(s)\n  s.sort(reverse=True)\n  s.append(s.pop(0))\n  return ''.join(s)",
         bench=bench_python_sort,
         script=(
             '  start = time.perf_counter()\n'
