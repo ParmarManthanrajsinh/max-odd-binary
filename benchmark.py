@@ -751,6 +751,7 @@ def generate_html(all_results, output_path):
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Max Odd Binary \u2014 Benchmark</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
 <style>
   *, *::before, *::after {{ box-sizing: border-box; }}
   body {{
@@ -819,6 +820,20 @@ def generate_html(all_results, output_path):
     display: inline-block; width: 10px; height: 10px;
     border-radius: 2px; margin-right: 6px;
   }}
+  .legend-row {{
+    display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+    flex-wrap: wrap;
+  }}
+  .legend-mode {{
+    padding: 4px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 0.8rem; border: 1px solid #30363d; background: transparent;
+    color: #8b949e; transition: all 0.15s;
+  }}
+  .legend-mode.active {{ background: #21262d; color: #e6edf3; border-color: #58a6ff; }}
+  .legend-tag {{
+    display: inline-block; padding: 3px 10px; border-radius: 4px;
+    font-size: 0.78rem; font-weight: 600; margin: 0 2px;
+  }}
 </style>
 </head>
 <body>
@@ -841,10 +856,20 @@ def generate_html(all_results, output_path):
   </select>
 </div>
 
+<div class="legend-row">
+  <button class="legend-mode active" onclick="setColorMode('language')">By Language</button>
+  <button class="legend-mode" onclick="setColorMode('approach')">By Approach</button>
+  <span id="legend-tags"></span>
+</div>
+
 <!-- Detail view -->
 <div class="view active" id="view-detail">
   <div class="chart-wrap">
     <canvas id="barChart"></canvas>
+    <button id="resetZoom" style="display:none; position:absolute; top:8px; right:12px;
+      padding:4px 12px; border-radius:6px; border:1px solid #30363d;
+      background:#21262d; color:#e6edf3; cursor:pointer; font-size:0.8rem;"
+      onclick="barChart.resetZoom(); this.style.display='none';">Reset zoom</button>
   </div>
   <table>
     <thead>
@@ -942,6 +967,20 @@ function buildBarChart() {{
             }},
             label: ctx => '\\n' + fmtTime(ctx.raw),
           }}
+        }},
+        zoom: {{
+          zoom: {{
+            drag: {{
+              enabled: true,
+              backgroundColor: 'rgba(88,166,255,0.15)',
+              borderColor: 'rgba(88,166,255,0.6)',
+              borderWidth: 1,
+            }},
+            mode: 'y',
+            onZoom: ({{chart}}) => {{
+              document.getElementById('resetZoom').style.display = '';
+            }}
+          }}
         }}
       }},
       scales: {{
@@ -970,14 +1009,16 @@ function updateBarChart() {{
     return `${{d.name}}  ${{d.code}}${{b}}`;
   }});
   const values = vis.map(d => d.by_size[currentSize].median_s * 1e6);
-  const colors = vis.map(d => d.color);
+  const colors = vis.map(d => getColor(d));
   barChart._visibleData = vis;
   barChart.data.labels = labels;
   barChart.data.datasets[0].data = values;
   barChart.data.datasets[0].backgroundColor = colors;
   barChart.canvas.parentElement.style.height = Math.max(200, vis.length * 52 + 60) + 'px';
   barChart.resize();
+  barChart.resetZoom();
   barChart.update();
+  document.getElementById('resetZoom').style.display = 'none';
 }}
 
 // ── Table (detail view) ──
@@ -999,7 +1040,7 @@ function updateTable() {{
     tr.innerHTML = `
       <td>${{rank + 1}}</td>
       <td><div class="lang-cell">
-        <span class="bar-swatch" style="background:${{d.color}}"></span>
+        <span class="bar-swatch" style="background:${{getColor(d)}}"></span>
         ${{d.logo ? `<img src="${{d.logo}}" alt="">` : ''}}
         ${{d.name}}
       </div></td>
@@ -1059,9 +1100,9 @@ function updateLineChart() {{
     datasets.push({{
       label: `${{d.name}} ${{d.code}}${{bytes}}`,
       data,
-      borderColor: d.color,
-      backgroundColor: d.color + '33',
-      pointBackgroundColor: d.color,
+      borderColor: getColor(d),
+      backgroundColor: getColor(d) + '33',
+      pointBackgroundColor: getColor(d),
       pointRadius: 5,
       borderWidth: 2.5,
       tension: 0.2,
@@ -1071,11 +1112,61 @@ function updateLineChart() {{
   lineChart.update();
 }}
 
+// ── Color modes ──
+const APPROACH_COLORS = {{
+  sort:      '#58a6ff',
+  partition: '#3fb950',
+  count:     '#d29922',
+  other:     '#8b949e',
+}};
+
+const APPROACH_LABELS = [
+  {{ key: 'sort',      label: 'Sort',      bg: '#58a6ff' }},
+  {{ key: 'partition',  label: 'Partition',  bg: '#3fb950' }},
+  {{ key: 'count',     label: 'Count',     bg: '#d29922' }},
+  {{ key: 'other',     label: 'Other',     bg: '#8b949e' }},
+];
+
+function getApproach(d) {{
+  const c = d.code.toLowerCase();
+  if (c.includes('count') || c.includes('tacit count') || c.includes('construct')) return 'count';
+  if (c.includes('partition')) return 'partition';
+  if (c.includes('sort') || c.includes('circshift') || c.includes('rotate')
+      || c === '1\u233d\u2228' || c === '\u21bb1\u21cc\u2346' || c === '1|.\\:~'
+      || c === '1\u233d\u2282\u2364\u2352\u235b\u2337'
+      || c.startsWith('1\u2218\u2296') || c.startsWith('1\u00ab\u2296')
+      || c.startsWith('\u2985')) return 'sort';
+  return 'other';
+}}
+
+let colorMode = 'language';
+
+function getColor(d) {{
+  return colorMode === 'language' ? d.color : (APPROACH_COLORS[getApproach(d)] || APPROACH_COLORS.other);
+}}
+
+function setColorMode(mode) {{
+  colorMode = mode;
+  document.querySelectorAll('.legend-mode').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(mode)));
+  const tagsEl = document.getElementById('legend-tags');
+  if (mode === 'approach') {{
+    tagsEl.innerHTML = APPROACH_LABELS.map(a =>
+      `<span class="legend-tag" style="background:${{a.bg}};color:#0d1117">${{a.label}}</span>`
+    ).join('');
+  }} else {{
+    tagsEl.innerHTML = '';
+  }}
+  updateBarChart();
+  updateTable();
+  updateLineChart();
+}}
+
 buildControls();
 buildBarChart();
 updateTable();
 buildLineChart();
 updateLineChart();
+setColorMode('language');
 </script>
 </body>
 </html>
