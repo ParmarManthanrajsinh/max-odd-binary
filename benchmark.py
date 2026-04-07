@@ -700,6 +700,57 @@ def generate_chart(results, output_path=OUTPUT_PNG):
     print(f"  Chart saved to {output_path}")
 
 
+# ─────────────────────────── Syntax Highlighting ────────────────
+
+def _shiki_highlight(snippets):
+    """Highlight code snippets with Shiki (VS Code engine). Falls back to Pygments."""
+    import json as _json
+
+    node = find_cmd("node")
+    shiki_ok = node and (ROOT / "node_modules" / "shiki").is_dir()
+
+    if shiki_ok:
+        input_data = [{"code": code, "lang": lang} for code, lang in snippets]
+        in_path = BUILD_DIR / "_shiki_in.json"
+        out_path = BUILD_DIR / "_shiki_out.json"
+        BUILD_DIR.mkdir(exist_ok=True)
+        in_path.write_text(_json.dumps(input_data, ensure_ascii=False))
+
+        script = (
+            "import{codeToHtml}from'shiki';"
+            "import{readFileSync,writeFileSync}from'fs';"
+            f"const d=JSON.parse(readFileSync('{in_path}','utf8'));"
+            "const r=[];"
+            "for(const{code,lang}of d)"
+            "  r.push(await codeToHtml(code,{lang,theme:'dracula'}));"
+            f"writeFileSync('{out_path}',JSON.stringify(r));"
+        )
+        _, err, rc = run_cmd([node, "--input-type=module", "-e", script],
+                             timeout=30)
+        if rc == 0 and out_path.exists():
+            results = _json.loads(out_path.read_text())
+            results = [re.sub(r'font-style:\s*italic;?\s*', '', h) for h in results]
+            in_path.unlink(missing_ok=True)
+            out_path.unlink(missing_ok=True)
+            print("  Syntax highlighting: Shiki (VS Code engine)")
+            return results
+
+    try:
+        from pygments import highlight as pyg_highlight
+        from pygments.lexers import get_lexer_by_name
+        from pygments.formatters import HtmlFormatter
+        fmt = HtmlFormatter(style='dracula', noclasses=True, nowrap=False)
+        results = []
+        for code, lang in snippets:
+            html = pyg_highlight(code, get_lexer_by_name(lang), fmt)
+            html = re.sub(r'font-style:\s*italic;?\s*', '', html)
+            results.append(html)
+        print("  Syntax highlighting: Pygments (fallback)")
+        return results
+    except Exception:
+        return [''] * len(snippets)
+
+
 # ─────────────────────────── Interactive HTML ───────────────────
 
 def generate_html(all_results, output_path):
@@ -719,6 +770,11 @@ def generate_html(all_results, output_path):
     sizes = sorted(all_results.keys())
     first_results = all_results[sizes[0]]
 
+    HIGHLIGHT_LANGS = {
+        "C++": "cpp", "Rust": "rust", "Nim": "nim",
+        "Python": "python", "Julia": "julia",
+    }
+
     sol_map = {}
     for size in sizes:
         for r in all_results[size]:
@@ -730,6 +786,7 @@ def generate_html(all_results, output_path):
                     logo=_logo_b64(r.get("logo", "")),
                     script=r.get("script", ""),
                     source_code=r.get("source_code", ""),
+                    highlight_lang=HIGHLIGHT_LANGS.get(r["name"], ""),
                     by_size={},
                 )
             sol_map[key]["by_size"][str(size)] = dict(
@@ -737,6 +794,18 @@ def generate_html(all_results, output_path):
                 median_display=_fmt_time(r["time"]),
                 all_times_us=[round(t * 1e6, 2) for t in r.get("all_times", [])],
             )
+
+    snippets = []
+    for sol in sol_map.values():
+        hl = sol.get('highlight_lang', '')
+        if hl:
+            snippets.append((sol, hl))
+        else:
+            sol['highlighted_html'] = ''
+
+    highlighted = _shiki_highlight([(s['source_code'], lang) for s, lang in snippets])
+    for (sol, _), html in zip(snippets, highlighted):
+        sol['highlighted_html'] = html or ''
 
     json_payload = dict(
         sizes=sizes,
@@ -834,6 +903,31 @@ def generate_html(all_results, output_path):
     display: inline-block; padding: 3px 10px; border-radius: 4px;
     font-size: 0.78rem; font-weight: 600; margin: 0 2px;
   }}
+
+  /* Presentation overlay */
+  #presentation-overlay {{
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 9999; background: #282a36;
+    display: none; cursor: pointer; overflow: auto;
+  }}
+  #presentation-overlay.active {{ display: block; }}
+  #presentation-overlay .pres-logo {{
+    position: absolute; top: 48px; left: 48px;
+    max-width: min(10vw, 180px); max-height: min(10vw, 180px);
+    min-width: 100px;
+    object-fit: contain;
+  }}
+  #presentation-overlay .pres-code-wrap {{
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 60px 6vw 60px 12vw;
+  }}
+  #presentation-overlay pre {{
+    margin: 0; padding: 0; background: transparent !important;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'DejaVu Sans Mono', monospace;
+    font-size: clamp(28px, 3vw, 52px); line-height: 1.75;
+    font-style: normal !important; font-feature-settings: 'liga' 0, 'calt' 0;
+  }}
+  #presentation-overlay code {{ font-family: inherit; }}
 </style>
 </head>
 <body>
@@ -887,6 +981,12 @@ def generate_html(all_results, output_path):
   <div class="chart-wrap" style="height:500px">
     <canvas id="lineChart"></canvas>
   </div>
+</div>
+
+<!-- Presentation overlay -->
+<div id="presentation-overlay" onclick="closePresentation()">
+  <img class="pres-logo" id="pres-logo" src="" alt="">
+  <div class="pres-code-wrap" id="pres-code-wrap"></div>
 </div>
 
 <script>
@@ -948,6 +1048,21 @@ function buildBarChart() {{
     data: {{ labels: [], datasets: [{{ data: [], backgroundColor: [], borderWidth: 0 }}] }},
     options: {{
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      onClick: (event, elements) => {{
+        if (elements.length > 0) {{
+          const d = barChart._visibleData[elements[0].index];
+          if (d && d.highlight_lang) openPresentation(d);
+        }}
+      }},
+      onHover: (event, elements) => {{
+        const target = event.native ? event.native.target : event.chart.canvas;
+        if (elements.length > 0) {{
+          const d = barChart._visibleData[elements[0].index];
+          target.style.cursor = (d && d.highlight_lang) ? 'pointer' : 'default';
+        }} else {{
+          target.style.cursor = 'default';
+        }}
+      }},
       plugins: {{
         legend: {{ display: false }},
         tooltip: {{
@@ -1161,6 +1276,24 @@ function setColorMode(mode) {{
   updateLineChart();
 }}
 
+// ── Presentation overlay ──
+function openPresentation(d) {{
+  const overlay = document.getElementById('presentation-overlay');
+  document.getElementById('pres-logo').src = d.logo;
+  document.getElementById('pres-code-wrap').innerHTML = d.highlighted_html;
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}}
+
+function closePresentation() {{
+  document.getElementById('presentation-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}}
+
+document.addEventListener('keydown', (e) => {{
+  if (e.key === 'Escape') closePresentation();
+}});
+
 buildControls();
 buildBarChart();
 updateTable();
@@ -1311,7 +1444,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="partition+rotate", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="auto f(string s) -> string {\n  partition(s, [](auto c){ return c=='1'; });\n  rotate(s, next(s.begin()));\n  return s;\n}",
+        source_code="auto f(std::string s) -> std::string {\n  std::ranges::partition(s, [](auto c){ return c=='1'; });\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "partition_rotate",
             "std::ranges::partition(s, [](auto c) { return c == '1'; });\n"
@@ -1328,7 +1461,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="sort+rotate", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="auto f(string s) -> string {\n  sort(s, greater{});\n  rotate(s, next(s.begin()));\n  return s;\n}",
+        source_code="auto f(std::string s) -> std::string {\n  std::ranges::sort(s, std::greater{});\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "sort_rotate",
             "std::ranges::sort(s, std::greater{});\n"
@@ -1345,7 +1478,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="count+construct", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="auto f(string s) -> string {\n  auto n = ranges::count(s, '1');\n  return string(n-1,'1')\n    + string(s.size()-n,'0') + '1';\n}",
+        source_code="auto f(std::string s) -> std::string {\n  auto n = std::ranges::count(s, '1');\n  return std::string(n-1,'1')\n    + std::string(s.size()-n,'0') + '1';\n}",
         bench=lambda: bench_cpp(
             "count_construct",
             "auto n = std::ranges::count(s, '1');\n"
@@ -1552,6 +1685,22 @@ def _merge_results(cached, fresh):
     return merged
 
 
+def _refresh_metadata(all_results):
+    """Overlay non-timing fields from SOLUTIONS onto cached results."""
+    meta = {}
+    for sol in SOLUTIONS:
+        key = sol["name"] + "\x00" + sol["code"]
+        meta[key] = {
+            k: sol[k] for k in ("source_code", "script", "color", "logo", "bytes")
+            if k in sol
+        }
+    for size, results in all_results.items():
+        for r in results:
+            key = _result_key(r)
+            if key in meta:
+                r.update(meta[key])
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Benchmark Maximum Odd Binary Number")
@@ -1575,6 +1724,7 @@ def main():
         if not cached:
             print("No cached results found. Run benchmarks first.")
             sys.exit(1)
+        _refresh_metadata(cached)
         print("Rebuilding outputs from cache...")
         default_size = 1_000
         results = cached.get(default_size) or next(iter(cached.values()))
