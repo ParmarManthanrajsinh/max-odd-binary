@@ -816,6 +816,7 @@ def generate_chart(results, output_path=OUTPUT_PNG):
 
 # ─────────────────────────── Syntax Highlighting ────────────────
 
+
 def _shiki_highlight(snippets):
     """Highlight code snippets with Shiki (VS Code engine). Falls back to Pygments."""
     import json as _json
@@ -839,11 +840,10 @@ def _shiki_highlight(snippets):
             "  r.push(await codeToHtml(code,{lang,theme:'dracula'}));"
             f"writeFileSync('{out_path}',JSON.stringify(r));"
         )
-        _, err, rc = run_cmd([node, "--input-type=module", "-e", script],
-                             timeout=30)
+        _, err, rc = run_cmd([node, "--input-type=module", "-e", script], timeout=30)
         if rc == 0 and out_path.exists():
             results = _json.loads(out_path.read_text())
-            results = [re.sub(r'font-style:\s*italic;?\s*', '', h) for h in results]
+            results = [re.sub(r"font-style:\s*italic;?\s*", "", h) for h in results]
             in_path.unlink(missing_ok=True)
             out_path.unlink(missing_ok=True)
             print("  Syntax highlighting: Shiki (VS Code engine)")
@@ -853,16 +853,17 @@ def _shiki_highlight(snippets):
         from pygments import highlight as pyg_highlight
         from pygments.lexers import get_lexer_by_name
         from pygments.formatters import HtmlFormatter
-        fmt = HtmlFormatter(style='dracula', noclasses=True, nowrap=False)
+
+        fmt = HtmlFormatter(style="dracula", noclasses=True, nowrap=False)
         results = []
         for code, lang in snippets:
             html = pyg_highlight(code, get_lexer_by_name(lang), fmt)
-            html = re.sub(r'font-style:\s*italic;?\s*', '', html)
+            html = re.sub(r"font-style:\s*italic;?\s*", "", html)
             results.append(html)
         print("  Syntax highlighting: Pygments (fallback)")
         return results
     except Exception:
-        return [''] * len(snippets)
+        return [""] * len(snippets)
 
 
 # ─────────────────────────── Interactive HTML ───────────────────
@@ -886,8 +887,12 @@ def generate_html(all_results, output_path):
     first_results = all_results[sizes[0]]
 
     HIGHLIGHT_LANGS = {
-        "C++": "cpp", "Rust": "rust", "Nim": "nim",
-        "D": "d", "Python": "python", "Julia": "julia",
+        "C++": "cpp",
+        "Rust": "rust",
+        "Nim": "nim",
+        "D": "d",
+        "Python": "python",
+        "Julia": "julia",
     }
 
     sol_map = {}
@@ -914,15 +919,15 @@ def generate_html(all_results, output_path):
 
     snippets = []
     for sol in sol_map.values():
-        hl = sol.get('highlight_lang', '')
+        hl = sol.get("highlight_lang", "")
         if hl:
             snippets.append((sol, hl))
         else:
-            sol['highlighted_html'] = ''
+            sol["highlighted_html"] = ""
 
-    highlighted = _shiki_highlight([(s['source_code'], lang) for s, lang in snippets])
+    highlighted = _shiki_highlight([(s["source_code"], lang) for s, lang in snippets])
     for (sol, _), html in zip(snippets, highlighted):
-        sol['highlighted_html'] = html or ''
+        sol["highlighted_html"] = html or ""
 
     json_payload = dict(
         sizes=sizes,
@@ -938,6 +943,9 @@ def generate_html(all_results, output_path):
 <title>Max Odd Binary \u2014 Benchmark</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
+<link href="https://fonts.cdnfonts.com/css/star-jedi-rounded" rel="stylesheet">
+<link href="https://fonts.cdnfonts.com/css/sf-distant-galaxy" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after {{ box-sizing: border-box; }}
   body {{
@@ -1016,10 +1024,157 @@ def generate_html(all_results, output_path):
     color: #8b949e; transition: all 0.15s;
   }}
   .legend-mode.active {{ background: #21262d; color: #e6edf3; border-color: #58a6ff; }}
+  .approach-filters {{
+    display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+  }}
+  .approach-filters .label {{ color: #8b949e; font-size: 0.8rem; margin-right: 4px; }}
+  .approach-filter {{
+    padding: 5px 16px; border-radius: 20px; cursor: pointer;
+    font-size: 0.8rem; border: 2px solid var(--ab);
+    background: color-mix(in srgb, var(--ab) 35%, transparent);
+    color: #e6edf3; transition: all 0.15s;
+  }}
+  .approach-filter:not(.active) {{
+    background: transparent; opacity: 0.5;
+  }}
   .legend-tag {{
     display: inline-block; padding: 3px 10px; border-radius: 4px;
     font-size: 0.78rem; font-weight: 600; margin: 0 2px;
   }}
+
+  /* Title slide */
+  #title-slide {{
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 10000; background: #000;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    cursor: pointer; overflow: hidden;
+  }}
+  #title-slide.active {{ display: flex; }}
+  #title-slide .top-logos {{
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(24px, 4vw, 60px); margin-bottom: clamp(30px, 5vh, 60px);
+  }}
+  #title-slide .top-logos .vs-label {{
+    font-family: 'Star Jedi', 'SF Distant Galaxy', sans-serif;
+    font-size: clamp(24px, 3.5vw, 56px);
+    color: #fff;
+  }}
+  #title-slide .top-logos .big-logo {{
+    width: clamp(120px, 18vw, 280px); height: clamp(120px, 18vw, 280px);
+    object-fit: contain;
+  }}
+  #title-slide .array-grid {{
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: clamp(10px, 1.5vw, 24px);
+  }}
+  #title-slide .array-grid img {{
+    width: clamp(80px, 10vw, 160px); height: clamp(80px, 10vw, 160px);
+    object-fit: contain;
+  }}
+  #title-slide .title-main {{
+    font-family: 'SF Distant Galaxy', 'Star Jedi', 'SF Distant Galaxy', sans-serif;
+    font-size: clamp(80px, 18vw, 300px);
+    color: #FFE81F;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    white-space: nowrap;
+  }}
+  #title-slide .title-sub {{
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    font-size: clamp(14px, 2.5vw, 36px);
+    font-weight: 400;
+    color: #58a6ff;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    margin-top: 20px; text-align: center;
+  }}
+  #title-slide .bottom-logos {{
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(30px, 5vw, 80px); margin-top: clamp(30px, 5vh, 60px);
+  }}
+  #title-slide .bottom-logos img {{
+    width: clamp(70px, 9vw, 140px); height: clamp(70px, 9vw, 140px);
+    object-fit: contain;
+  }}
+
+  /* Slideshow */
+  #slide-container {{
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 10000; background: #000;
+    display: none;
+  }}
+  #slide-container.active {{ display: block; }}
+  .slide {{
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #000; overflow: hidden;
+  }}
+  .slide.active {{ display: flex; }}
+  .slide-section {{
+    text-align: center; color: #fff;
+  }}
+  .slide-section .sec-top {{
+    font-family: 'Star Jedi', 'SF Distant Galaxy', sans-serif;
+    font-size: clamp(16px, 2.5vw, 40px);
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }}
+  .slide-section .sec-bar {{
+    width: min(70vw, 800px); height: 2px;
+    background: #fff; margin: 12px auto;
+  }}
+  .slide-section .sec-part {{
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    font-size: clamp(50px, 10vw, 160px);
+    letter-spacing: 0.15em; line-height: 1.1;
+    font-weight: 400;
+  }}
+  .slide-section .sec-subtitle {{
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    font-size: clamp(20px, 3.5vw, 56px);
+    letter-spacing: 0.2em; text-transform: uppercase;
+    font-weight: 400;
+  }}
+  .slide-text {{
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    font-size: clamp(36px, 6vw, 100px);
+    color: #e6edf3;
+    text-align: center; letter-spacing: 0.05em;
+    font-weight: 300;
+  }}
+  .slide-logos {{
+    display: flex; align-items: center; justify-content: center;
+    gap: clamp(30px, 5vw, 80px);
+  }}
+  .slide-logos img {{
+    width: clamp(100px, 20vw, 320px); height: clamp(100px, 20vw, 320px);
+    object-fit: contain;
+  }}
+  .slide-logos.solo img {{
+    width: clamp(200px, 40vw, 640px); height: clamp(200px, 40vw, 640px);
+    object-fit: contain;
+  }}
+  .slide-code {{
+    background: #282a36;
+  }}
+  .slide-code .pres-logo {{
+    position: absolute; top: 48px; left: 48px;
+    max-width: min(14vw, 260px); max-height: min(14vw, 260px);
+    min-width: 140px; object-fit: contain;
+  }}
+  .slide-code .pres-code-wrap {{
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 60px 6vw 60px 12vw;
+  }}
+  .slide-code pre {{
+    margin: 0; padding: 0; background: transparent !important;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'DejaVu Sans Mono', monospace;
+    font-size: clamp(28px, 3vw, 52px); line-height: 1.75;
+    font-style: normal !important; font-feature-settings: 'liga' 0, 'calt' 0;
+  }}
+  .slide-code code {{ font-family: inherit; }}
 
   /* Presentation overlay */
   #presentation-overlay {{
@@ -1073,6 +1228,13 @@ def generate_html(all_results, output_path):
   <span id="legend-tags"></span>
 </div>
 
+<div class="approach-filters">
+  <span class="label">Filter:</span>
+  <button class="approach-filter active" style="--ab:#58a6ff" onclick="toggleApproachFilter('sort', this)">Sort + Rotate</button>
+  <button class="approach-filter active" style="--ab:#3fb950" onclick="toggleApproachFilter('partition', this)">Partition + Rotate</button>
+  <button class="approach-filter active" style="--ab:#f85149" onclick="toggleApproachFilter('count', this)">Count + Construct</button>
+</div>
+
 <!-- Detail view -->
 <div class="view active" id="view-detail">
   <div class="chart-wrap">
@@ -1100,7 +1262,93 @@ def generate_html(all_results, output_path):
   </div>
 </div>
 
-<!-- Presentation overlay -->
+<!-- Slideshow -->
+<div id="slide-container">
+  <!-- 0: Title -->
+  <div class="slide" id="title-slide" data-slide="0">
+    <div class="top-logos" id="top-logos"></div>
+    <div class="title-main">PERF WARS</div>
+    <div class="title-sub">Episode I: Maximum Odd Binary</div>
+    <div class="bottom-logos" id="bottom-logos"></div>
+  </div>
+  <!-- 1: Section (Episode I style) -->
+  <div class="slide" data-slide="1">
+    <div class="slide-section">
+      <div class="sec-top">PERF WARS</div>
+      <div class="sec-bar"></div>
+      <div class="sec-part">PART I</div>
+      <div class="sec-bar"></div>
+      <div class="sec-subtitle">Sort + Rotate</div>
+    </div>
+  </div>
+  <!-- 2-4: Text slides -->
+  <div class="slide" data-slide="2">
+    <div class="slide-text">Problem Description</div>
+  </div>
+  <div class="slide" data-slide="3">
+    <div class="slide-text">Array Solutions</div>
+  </div>
+  <div class="slide" data-slide="4">
+    <div class="slide-text">Array Comparison</div>
+  </div>
+  <!-- 5: C++ logo -->
+  <div class="slide" data-slide="5">
+    <div class="slide-logos solo" id="slide-logos-cpp"></div>
+  </div>
+  <!-- 6: C++ code -->
+  <div class="slide slide-code" data-slide="6" id="slide-code-cpp-sort"></div>
+  <!-- 7: Rust/D/Julia/Nim/Python logos -->
+  <div class="slide" data-slide="7">
+    <div class="slide-logos" id="slide-logos-others"></div>
+  </div>
+  <!-- 8-12: Code slides -->
+  <div class="slide slide-code" data-slide="8" id="slide-code-rust-sort"></div>
+  <div class="slide slide-code" data-slide="9" id="slide-code-julia-sort"></div>
+  <div class="slide slide-code" data-slide="10" id="slide-code-nim-sort"></div>
+  <div class="slide slide-code" data-slide="11" id="slide-code-python-sort"></div>
+  <div class="slide slide-code" data-slide="12" id="slide-code-d-sort"></div>
+  <!-- Part II -->
+  <div class="slide" data-slide="13">
+    <div class="slide-section">
+      <div class="sec-top">PERF WARS</div>
+      <div class="sec-bar"></div>
+      <div class="sec-part">PART II</div>
+      <div class="sec-bar"></div>
+      <div class="sec-subtitle">Partition + Rotate</div>
+    </div>
+  </div>
+  <div class="slide slide-code" data-slide="14" id="slide-code-cpp-part"></div>
+  <div class="slide slide-code" data-slide="15" id="slide-code-rust-part"></div>
+  <div class="slide slide-code" data-slide="16" id="slide-code-d-part"></div>
+  <!-- Part III -->
+  <div class="slide" data-slide="17">
+    <div class="slide-section">
+      <div class="sec-top">PERF WARS</div>
+      <div class="sec-bar"></div>
+      <div class="sec-part">PART III</div>
+      <div class="sec-bar"></div>
+      <div class="sec-subtitle">Count + Construct</div>
+    </div>
+  </div>
+  <div class="slide" data-slide="18">
+    <div class="slide-text">Array Solutions</div>
+  </div>
+  <div class="slide slide-code" data-slide="19" id="slide-code-cpp-count"></div>
+  <div class="slide slide-code" data-slide="20" id="slide-code-rust-count"></div>
+  <div class="slide slide-code" data-slide="21" id="slide-code-d-count"></div>
+  <!-- Part IV -->
+  <div class="slide" data-slide="22">
+    <div class="slide-section">
+      <div class="sec-top">PERF WARS</div>
+      <div class="sec-bar"></div>
+      <div class="sec-part">PART IV</div>
+      <div class="sec-bar"></div>
+      <div class="sec-subtitle">Twitter++</div>
+    </div>
+  </div>
+</div>
+
+<!-- Presentation overlay (bar click) -->
 <div id="presentation-overlay" onclick="closePresentation()">
   <img class="pres-logo" id="pres-logo" src="" alt="">
   <div class="pres-code-wrap" id="pres-code-wrap"></div>
@@ -1111,6 +1359,7 @@ const BENCH = {json.dumps(json_payload, ensure_ascii=False)};
 const SIZES = BENCH.sizes;
 const SOLS  = BENCH.solutions;
 const enabled = new Set(SOLS.map((_, i) => i));
+const enabledApproaches = new Set(['sort', 'partition', 'count', 'other']);
 let currentSize = SIZES.includes(1000) ? '1000' : String(SIZES[0]);
 let barChart, lineChart;
 
@@ -1234,7 +1483,7 @@ function buildBarChart() {{
 function updateBarChart() {{
   const vis = SOLS
     .map((d, i) => ({{ ...d, idx: i }}))
-    .filter(d => enabled.has(d.idx) && d.by_size[currentSize])
+    .filter(d => enabled.has(d.idx) && d.by_size[currentSize] && enabledApproaches.has(getApproach(d)))
     .sort((a, b) => a.by_size[currentSize].median_s - b.by_size[currentSize].median_s);
   const labels = vis.map(d => {{
     const b = d.bytes ? ` (${{d.bytes}}B)` : '';
@@ -1258,7 +1507,7 @@ function updateTable() {{
   const tbody = document.getElementById('tbody');
   const vis = SOLS
     .map((d, i) => ({{ ...d, idx: i }}))
-    .filter(d => enabled.has(d.idx) && d.by_size[currentSize])
+    .filter(d => enabled.has(d.idx) && d.by_size[currentSize] && enabledApproaches.has(getApproach(d)))
     .sort((a, b) => a.by_size[currentSize].median_s - b.by_size[currentSize].median_s);
   tbody.innerHTML = '';
   vis.forEach((d, rank) => {{
@@ -1323,7 +1572,7 @@ function updateLineChart() {{
   if (!lineChart) return;
   const datasets = [];
   SOLS.forEach((d, i) => {{
-    if (!enabled.has(i)) return;
+    if (!enabled.has(i) || !enabledApproaches.has(getApproach(d))) return;
     const data = SIZES.map(s => {{
       const sd = d.by_size[String(s)];
       return sd ? sd.median_s : null;
@@ -1348,15 +1597,13 @@ function updateLineChart() {{
 const APPROACH_COLORS = {{
   sort:      '#58a6ff',
   partition: '#3fb950',
-  count:     '#d29922',
-  other:     '#8b949e',
+  count:     '#f85149',
 }};
 
 const APPROACH_LABELS = [
   {{ key: 'sort',      label: 'Sort',      bg: '#58a6ff' }},
   {{ key: 'partition',  label: 'Partition',  bg: '#3fb950' }},
-  {{ key: 'count',     label: 'Count',     bg: '#d29922' }},
-  {{ key: 'other',     label: 'Other',     bg: '#8b949e' }},
+  {{ key: 'count',     label: 'Count',     bg: '#f85149' }},
 ];
 
 function getApproach(d) {{
@@ -1364,7 +1611,7 @@ function getApproach(d) {{
   if (c.includes('count') || c.includes('tacit count') || c.includes('construct')) return 'count';
   if (c.includes('partition')) return 'partition';
   if (c.includes('sort') || c.includes('circshift') || c.includes('rotate')
-      || c === '1\u233d\u2228' || c === '\u21bb1\u21cc\u2346' || c === '1|.\\:~'
+      || c === '1\u233d\u2228' || c === '\u21bb1\u21cc\u2346' || c === '1|.\\\\:~'
       || c === '1\u233d\u2282\u2364\u2352\u235b\u2337'
       || c.startsWith('1\u2218\u2296') || c.startsWith('1\u00ab\u2296')
       || c.startsWith('\u2985')) return 'sort';
@@ -1393,6 +1640,19 @@ function setColorMode(mode) {{
   updateLineChart();
 }}
 
+function toggleApproachFilter(approach, btn) {{
+  if (enabledApproaches.has(approach)) {{
+    enabledApproaches.delete(approach);
+    btn.classList.remove('active');
+  }} else {{
+    enabledApproaches.add(approach);
+    btn.classList.add('active');
+  }}
+  updateBarChart();
+  updateTable();
+  updateLineChart();
+}}
+
 // ── Presentation overlay ──
 function openPresentation(d) {{
   const overlay = document.getElementById('presentation-overlay');
@@ -1407,9 +1667,134 @@ function closePresentation() {{
   document.body.style.overflow = '';
 }}
 
+// ── Slideshow engine ──
+let slideIndex = 0;
+let slideshowActive = false;
+const slideEls = document.querySelectorAll('#slide-container .slide');
+const totalSlides = slideEls.length;
+
+function showSlide(n) {{
+  slideIndex = Math.max(0, Math.min(n, totalSlides - 1));
+  slideEls.forEach((el, i) => el.classList.toggle('active', i === slideIndex));
+}}
+
+function enterPresentation(startAt) {{
+  slideshowActive = true;
+  showSlide(startAt != null ? startAt : 0);
+  document.getElementById('slide-container').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}}
+
+function exitPresentation() {{
+  slideshowActive = false;
+  document.getElementById('slide-container').classList.remove('active');
+  slideEls.forEach(el => el.classList.remove('active'));
+  document.body.style.overflow = '';
+}}
+
+function togglePresentation() {{
+  if (slideshowActive) exitPresentation();
+  else enterPresentation(0);
+}}
+
 document.addEventListener('keydown', (e) => {{
-  if (e.key === 'Escape') closePresentation();
+  if (e.key === 'Escape') {{
+    if (slideshowActive) {{ exitPresentation(); return; }}
+    closePresentation();
+  }}
+  if (e.ctrlKey && e.key === 'p') {{
+    e.preventDefault();
+    togglePresentation();
+    return;
+  }}
+  if (!slideshowActive) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {{
+    e.preventDefault();
+    showSlide(slideIndex + 1);
+  }}
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {{
+    e.preventDefault();
+    showSlide(slideIndex - 1);
+  }}
 }});
+
+// ── Build slides ──
+function buildSlides() {{
+  const byName = {{}};
+  const solByKey = {{}};
+  SOLS.forEach(d => {{
+    if (d.logo && !byName[d.name]) byName[d.name] = d.logo;
+    solByKey[d.name + '|' + d.code] = d;
+  }});
+  const mk = (src, cls) => {{
+    const img = document.createElement('img');
+    img.src = src;
+    if (cls) img.className = cls;
+    return img;
+  }};
+
+  // Title slide logos
+  const topEl = document.getElementById('top-logos');
+  const botEl = document.getElementById('bottom-logos');
+  const arrayLangs = ['BQN', 'Uiua', 'J', 'APL', 'Kap', 'TinyAPL'];
+  const bottomLangs = ['Julia', 'D', 'Nim', 'Python'];
+
+  if (byName['C++']) topEl.appendChild(mk(byName['C++'], 'big-logo'));
+  const vs1 = document.createElement('span');
+  vs1.className = 'vs-label'; vs1.textContent = 'vs';
+  topEl.appendChild(vs1);
+  if (byName['Rust']) topEl.appendChild(mk(byName['Rust'], 'big-logo'));
+  const vs2 = document.createElement('span');
+  vs2.className = 'vs-label'; vs2.textContent = 'vs';
+  topEl.appendChild(vs2);
+  const grid = document.createElement('div');
+  grid.className = 'array-grid';
+  arrayLangs.forEach(name => {{
+    if (byName[name]) grid.appendChild(mk(byName[name]));
+  }});
+  topEl.appendChild(grid);
+  bottomLangs.forEach(name => {{
+    if (byName[name]) botEl.appendChild(mk(byName[name]));
+  }});
+
+  // Slide 5: C++ logo
+  const cppLogos = document.getElementById('slide-logos-cpp');
+  if (byName['C++']) cppLogos.appendChild(mk(byName['C++']));
+
+  // Slide 7: Rust, Julia, Nim, Python logos
+  const othLogos = document.getElementById('slide-logos-others');
+  ['Rust', 'D', 'Julia', 'Nim', 'Python'].forEach(name => {{
+    if (byName[name]) othLogos.appendChild(mk(byName[name]));
+  }});
+
+  // Code slides
+  const codeSlides = [
+    ['slide-code-cpp-sort', 'C++', 'sort+rotate'],
+    ['slide-code-rust-sort', 'Rust', 'sort+rotate'],
+    ['slide-code-julia-sort', 'Julia', 'sort+circshift'],
+    ['slide-code-nim-sort', 'Nim', 'sort+rotate'],
+    ['slide-code-python-sort', 'Python', 'sort+rotate'],
+    ['slide-code-d-sort', 'D', 'sort+rotate'],
+    ['slide-code-cpp-part', 'C++', 'partition+rotate'],
+    ['slide-code-rust-part', 'Rust', 'partition+rotate'],
+    ['slide-code-d-part', 'D', 'partition+rotate'],
+    ['slide-code-cpp-count', 'C++', 'count+construct'],
+    ['slide-code-rust-count', 'Rust', 'count+construct'],
+    ['slide-code-d-count', 'D', 'count+construct'],
+  ];
+  codeSlides.forEach(([id, name, code]) => {{
+    const sol = solByKey[name + '|' + code];
+    if (!sol) return;
+    const el = document.getElementById(id);
+    const logo = document.createElement('img');
+    logo.className = 'pres-logo'; logo.src = sol.logo;
+    el.appendChild(logo);
+    const wrap = document.createElement('div');
+    wrap.className = 'pres-code-wrap';
+    wrap.innerHTML = sol.highlighted_html;
+    el.appendChild(wrap);
+  }});
+}}
 
 buildControls();
 buildBarChart();
@@ -1417,6 +1802,7 @@ updateTable();
 buildLineChart();
 updateLineChart();
 setColorMode('language');
+buildSlides();
 </script>
 </body>
 </html>
@@ -1598,8 +1984,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="C++", code="partition+rotate", bytes=None,
-        color="#659ad2", logo="cpp_logo",
+        name="C++",
+        code="partition+rotate",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
         source_code="auto mob(std::string s) -> std::string {\n  std::ranges::partition(s, [](auto c){ return c=='1'; });\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "partition_rotate",
@@ -1615,8 +2004,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="C++", code="sort+rotate", bytes=None,
-        color="#659ad2", logo="cpp_logo",
+        name="C++",
+        code="sort+rotate",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
         source_code="auto mob(std::string s) -> std::string {\n  std::ranges::sort(s, std::greater{});\n  std::ranges::rotate(s, std::next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "sort_rotate",
@@ -1632,8 +2024,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="C++", code="count+construct", bytes=None,
-        color="#659ad2", logo="cpp_logo",
+        name="C++",
+        code="count+construct",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
         source_code="auto mob(std::string s) -> std::string {\n  auto n = std::ranges::count(s, '1');\n  return std::string(n-1,'1')\n    + std::string(s.size()-n,'0') + '1';\n}",
         bench=lambda: bench_cpp(
             "count_construct",
@@ -1647,8 +2042,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Rust", code="sort+rotate", bytes=None,
-        color="#dea584", logo="rust_logo_darkmode",
+        name="Rust",
+        code="sort+rotate",
+        bytes=None,
+        color="#dea584",
+        logo="rust_logo_darkmode",
         source_code="fn mob(mut s: Vec<u8>) -> Vec<u8> {\n  s.sort_unstable_by(|a,b| b.cmp(a));\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust(
             "rust_sort",
@@ -1662,8 +2060,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Rust", code="partition+rotate", bytes=None,
-        color="#dea584", logo="rust_logo_darkmode",
+        name="Rust",
+        code="partition+rotate",
+        bytes=None,
+        color="#dea584",
+        logo="rust_logo_darkmode",
         source_code="fn mob(mut s: Vec<u8>) -> Vec<u8> {\n  s.iter_mut()\n    .partition_in_place(|c| *c == b'1');\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust_nightly(
             "rust_partition",
@@ -1677,8 +2078,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Rust", code="count+construct", bytes=None,
-        color="#dea584", logo="rust_logo_darkmode",
+        name="Rust",
+        code="count+construct",
+        bytes=None,
+        color="#dea584",
+        logo="rust_logo_darkmode",
         source_code="fn mob(mut s: Vec<u8>) -> Vec<u8> {\n  let n = s.iter()\n    .filter(|&&c| c==b'1').count();\n  let len = s.len();\n  s.clear();\n  s.extend(repeat(b'1').take(n-1));\n  s.extend(repeat(b'0').take(len-n));\n  s.push(b'1');\n  s\n}",
         bench=lambda: bench_rust(
             "rust_count",
@@ -1697,8 +2101,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Nim", code="sort+rotate", bytes=None,
-        color="#ffe953", logo="nim_logo",
+        name="Nim",
+        code="sort+rotate",
+        bytes=None,
+        color="#ffe953",
+        logo="nim_logo",
         source_code="proc mob(s: var string) =\n  sort(s, order = Descending)\n  rotateLeft(s, 1)",
         bench=lambda: bench_nim(
             "nim_sort",
@@ -1768,8 +2175,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Julia", code="sort+circshift", bytes=None,
-        color="#9558b2", logo="julia_logo_darkmode",
+        name="Julia",
+        code="sort+circshift",
+        bytes=None,
+        color="#9558b2",
+        logo="julia_logo_darkmode",
         source_code="function mob(s)\n  v = sort(s, rev=true)\n  circshift(v, -1)\nend",
         bench=bench_julia,
         script=(
@@ -1780,8 +2190,11 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Python", code="sort+rotate", bytes=None,
-        color="#3776ab", logo="python_logo",
+        name="Python",
+        code="sort+rotate",
+        bytes=None,
+        color="#3776ab",
+        logo="python_logo",
         source_code="def mob(s):\n  s = list(s)\n  s.sort(reverse=True)\n  s.append(s.pop(0))\n  return ''.join(s)",
         bench=bench_python_sort,
         script=(
@@ -1908,7 +2321,8 @@ def _refresh_metadata(all_results):
     for sol in SOLUTIONS:
         key = sol["name"] + "\x00" + sol["code"]
         meta[key] = {
-            k: sol[k] for k in ("source_code", "script", "color", "logo", "bytes")
+            k: sol[k]
+            for k in ("source_code", "script", "color", "logo", "bytes")
             if k in sol
         }
     for size, results in all_results.items():
