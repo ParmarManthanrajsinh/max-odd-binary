@@ -213,12 +213,13 @@ def bench_apl():
     interp = find_cmd("dyalog")
     if not interp:
         return None
+    apl_n = N_ITERS * 200
     code = (
         f"input\u2190{INPUT_LEN}\u2374'01'\n"
-        f"n\u2190{N_ITERS}\n"
-        "t\u21902\u2283\u2395AI\n"
+        f"n\u2190{apl_n}\n"
+        "t\u21903\u2283\u2395AI\n"
         "_\u2190{(1\u233d\u2282\u2364\u2352\u235b\u2337)input}\u00a8\u2373n\n"
-        "\u2395\u2190'RESULT ',(\u2355((2\u2283\u2395AI)-t)\u00f71000\u00d7n)\n"
+        "\u2395\u2190'RESULT ',(\u2355((3\u2283\u2395AI)-t)\u00f71000\u00d7n)\n"
         "\u2395OFF\n"
     )
     env = os.environ.copy()
@@ -236,13 +237,14 @@ def bench_apl_count():
     interp = find_cmd("dyalog")
     if not interp:
         return None
+    apl_n = N_ITERS * 200
     code = (
         f"input\u2190{INPUT_LEN}\u2374'01'\n"
-        f"n\u2190{N_ITERS}\n"
+        f"n\u2190{apl_n}\n"
         "Mob\u2190'101'/\u23681,\u2368\u2262((1-\u2368\u22a2),-)( +/'1'\u2218=)\n"
-        "t\u21902\u2283\u2395AI\n"
+        "t\u21903\u2283\u2395AI\n"
         "_\u2190{Mob input}\u00a8\u2373n\n"
-        "\u2395\u2190'RESULT ',(\u2355((2\u2283\u2395AI)-t)\u00f71000\u00d7n)\n"
+        "\u2395\u2190'RESULT ',(\u2355((3\u2283\u2395AI)-t)\u00f71000\u00d7n)\n"
         "\u2395OFF\n"
     )
     env = os.environ.copy()
@@ -281,7 +283,7 @@ def bench_tinyapl(solution_code):
 
 def bench_kap():
     """Kap: uses time:measureTime for native timing."""
-    kap_path = Path.home() / "Downloads/kap/gui/bin/kap-jvm"
+    kap_path = Path.home() / "Downloads/kap/gui2/bin/kap-jvm"
     if not kap_path.exists():
         return None
     expr = (
@@ -769,8 +771,7 @@ def generate_chart(results, output_path=OUTPUT_PNG):
 
     labels = []
     for r in results:
-        b = f" ({r['bytes']}B)" if r.get("bytes") else ""
-        labels.append(f"{r['name']}  {r['code']}{b}")
+        labels.append(f"{r['name']}  {r['code']}")
     ax.set_yticks(y)
     tick_kw = {}
     if label_fp:
@@ -1187,6 +1188,18 @@ def generate_html(all_results, output_path):
   }}
   .slide-code code {{ font-family: inherit; }}
 
+  /* Magic Move token animation */
+  #magic-move-overlay {{
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 10001; pointer-events: none;
+    background: #282a36; display: none;
+  }}
+  #magic-move-overlay span {{
+    position: absolute; white-space: pre;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'DejaVu Sans Mono', monospace;
+    font-feature-settings: 'liga' 0, 'calt' 0;
+  }}
+
   /* Presentation overlay */
   #presentation-overlay {{
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -1275,6 +1288,7 @@ def generate_html(all_results, output_path):
 
 <!-- Slideshow -->
 <div id="slide-container">
+  <div id="magic-move-overlay"></div>
   <!-- 0: Title -->
   <div class="slide" id="title-slide" data-slide="0">
     <div class="top-logos" id="top-logos"></div>
@@ -1515,8 +1529,7 @@ function updateBarChart() {{
     .filter(d => enabled.has(d.idx) && d.by_size[currentSize] && enabledApproaches.has(getApproach(d)))
     .sort((a, b) => a.by_size[currentSize].median_s - b.by_size[currentSize].median_s);
   const labels = vis.map(d => {{
-    const b = d.bytes ? ` (${{d.bytes}}B)` : '';
-    return `${{d.name}}  ${{d.code}}${{b}}`;
+    return `${{d.name}}  ${{d.code}}`;
   }});
   const values = vis.map(d => d.by_size[currentSize].median_s * 1e6);
   const colors = vis.map(d => getColor(d));
@@ -1606,9 +1619,8 @@ function updateLineChart() {{
       const sd = d.by_size[String(s)];
       return sd ? sd.median_s : null;
     }});
-    const bytes = d.bytes ? ` (${{d.bytes}}B)` : '';
     datasets.push({{
-      label: `${{d.name}} ${{d.code}}${{bytes}}`,
+      label: `${{d.name}} ${{d.code}}`,
       data,
       borderColor: getColor(d),
       backgroundColor: getColor(d) + '33',
@@ -1702,9 +1714,118 @@ let slideshowActive = false;
 const slideEls = document.querySelectorAll('#slide-container .slide');
 const totalSlides = slideEls.length;
 
+function getTokens(slideEl) {{
+  const spans = slideEl.querySelectorAll('.pres-code-wrap code span.line span[style]');
+  const tokens = [];
+  spans.forEach(el => {{
+    const text = el.textContent;
+    if (!text.trim()) return;
+    const r = el.getBoundingClientRect();
+    if (r.width > 0)
+      tokens.push({{ text, style: el.getAttribute('style'), x: r.left, y: r.top, w: r.width, h: r.height }});
+  }});
+  return tokens;
+}}
+
+function magicMove(oldSlide, newSlide, duration) {{
+  const oldTokens = getTokens(oldSlide);
+
+  const overlay = document.getElementById('magic-move-overlay');
+  overlay.innerHTML = '';
+  overlay.style.display = 'block';
+  overlay.style.opacity = '1';
+  overlay.style.transition = '';
+
+  slideEls.forEach((el, i) => el.classList.toggle('active', el === newSlide));
+
+  const newTokens = getTokens(newSlide);
+
+  const pre = newSlide.querySelector('pre') || newSlide;
+  const cs = getComputedStyle(pre);
+
+  const usedOld = new Set();
+  const matchMap = new Map();
+  newTokens.forEach((nt, ni) => {{
+    for (let i = 0; i < oldTokens.length; i++) {{
+      if (!usedOld.has(i) && oldTokens[i].text === nt.text) {{
+        usedOld.add(i);
+        matchMap.set(ni, oldTokens[i]);
+        return;
+      }}
+    }}
+  }});
+
+  function mkSpan(text, style, x, y, w, h) {{
+    const span = document.createElement('span');
+    span.textContent = text;
+    span.setAttribute('style', style);
+    span.style.fontSize = cs.fontSize;
+    span.style.lineHeight = h + 'px';
+    span.style.height = h + 'px';
+    span.style.width = w + 'px';
+    span.style.letterSpacing = cs.letterSpacing;
+    span.style.left = x + 'px';
+    span.style.top = y + 'px';
+    span.style.overflow = 'hidden';
+    return span;
+  }}
+
+  newTokens.forEach((nt, ni) => {{
+    if (matchMap.has(ni)) {{
+      const o = matchMap.get(ni);
+      const span = mkSpan(nt.text, nt.style, nt.x, nt.y, nt.w, nt.h);
+      const dx = o.x - nt.x;
+      const dy = o.y - nt.y;
+      span.style.transform = `translate(${{dx}}px, ${{dy}}px)`;
+      span.style.transition = `transform ${{duration}}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+      overlay.appendChild(span);
+      requestAnimationFrame(() => {{ span.style.transform = 'translate(0, 0)'; }});
+    }} else {{
+      const span = mkSpan(nt.text, nt.style, nt.x, nt.y, nt.w, nt.h);
+      span.style.opacity = '0';
+      span.style.transition = `opacity ${{duration * 0.5}}ms ease ${{duration * 0.3}}ms`;
+      overlay.appendChild(span);
+      requestAnimationFrame(() => {{ span.style.opacity = '1'; }});
+    }}
+  }});
+
+  oldTokens.forEach((o, i) => {{
+    if (usedOld.has(i)) return;
+    const span = mkSpan(o.text, o.style, o.x, o.y, o.w, o.h);
+    span.style.transition = `opacity ${{duration * 0.4}}ms ease`;
+    overlay.appendChild(span);
+    requestAnimationFrame(() => {{ span.style.opacity = '0'; }});
+  }});
+
+  setTimeout(() => {{
+    overlay.style.transition = `opacity ${{duration * 0.2}}ms ease`;
+    overlay.style.opacity = '0';
+  }}, duration * 0.85);
+
+  setTimeout(() => {{
+    overlay.innerHTML = '';
+    overlay.style.display = '';
+    overlay.style.opacity = '';
+    overlay.style.transition = '';
+  }}, duration + 80);
+}}
+
+const MM_DURATION = 500;
+
 function showSlide(n) {{
-  slideIndex = Math.max(0, Math.min(n, totalSlides - 1));
-  slideEls.forEach((el, i) => el.classList.toggle('active', i === slideIndex));
+  const newIndex = Math.max(0, Math.min(n, totalSlides - 1));
+  if (newIndex === slideIndex && slideEls[slideIndex].classList.contains('active')) return;
+
+  const oldSlide = slideEls[slideIndex];
+  const newSlide = slideEls[newIndex];
+  const bothCode = oldSlide.classList.contains('slide-code') && newSlide.classList.contains('slide-code');
+
+  if (bothCode && slideshowActive) {{
+    magicMove(oldSlide, newSlide, MM_DURATION);
+  }} else {{
+    slideEls.forEach((el, i) => el.classList.toggle('active', i === newIndex));
+  }}
+  slideIndex = newIndex;
 }}
 
 function enterPresentation(startAt) {{
@@ -1900,7 +2021,7 @@ SOLUTIONS = [
         name="Kap",
         code="1\u233d\u2228",
         bytes=3,
-        color="#55a630",
+        color="#ffffff",
         logo="kap",
         source_code="1\u233d\u2228",
         bench=bench_kap,
@@ -2007,9 +2128,9 @@ SOLUTIONS = [
         bench=bench_apl,
         script=(
             "  input\u2190L\u2374'01'                         \u2190 not timed\n"
-            "  t\u21902\u2283\u2395AI\n"
+            "  t\u21903\u2283\u2395AI\n"
             "  _\u2190{(1\u233d\u2282\u2364\u2352\u235b\u2337)input}\u00a8\u2373N        \u2190 timed: apply fn N times\n"
-            "  \u2395\u2190((2\u2283\u2395AI)-t)\u00f71000\u00d7N"
+            "  \u2395\u2190((3\u2283\u2395AI)-t)\u00f71000\u00d7N"
         ),
     ),
     dict(
@@ -2543,9 +2664,8 @@ def main():
     print(f"  Results for {default_size:,}-char input (fastest \u2192 slowest)")
     print("=" * 60)
     for i, r in enumerate(results, 1):
-        b = f"({r['bytes']}B)" if r.get("bytes") else ""
         print(
-            f"  {i:>2}. {r['name']:>10}  {r['code']:<18} {b:<6} {_fmt_time(r['time']):>10}"
+            f"  {i:>2}. {r['name']:>10}  {r['code']:<24} {_fmt_time(r['time']):>10}"
         )
 
     print("\nGenerating outputs...")
