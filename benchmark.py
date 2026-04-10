@@ -621,6 +621,62 @@ def bench_julia():
         os.unlink(path)
 
 
+# ─────────────────────────── Benchmark: Julia (bool) ─────────────
+
+
+def bench_julia_bool():
+    interp = find_cmd("julia")
+    if not interp:
+        return None
+    code = (
+        "function maximum_odd_binary(s)\n"
+        "    v = circshift(sort(collect(s) .== '1', rev=true), -1)\n"
+        "    String(map(b -> b ? '1' : '0', v))\n"
+        "end\n\n"
+        f'input = repeat("01", {INPUT_LEN // 2})\n'
+        "maximum_odd_binary(input)\n"
+        f"n = {N_ITERS}\n"
+        "t = @elapsed for _ in 1:n\n"
+        "    maximum_odd_binary(input)\n"
+        "end\n"
+        "println(t / n)\n"
+    )
+    path = write_temp(".jl", code)
+    try:
+        out, _, rc = run_cmd([interp, "--startup-file=no", path], timeout=60)
+        return parse_number(out) if rc == 0 else None
+    finally:
+        os.unlink(path)
+
+
+# ─────────────────────────── Benchmark: Julia (count) ────────────
+
+
+def bench_julia_count():
+    interp = find_cmd("julia")
+    if not interp:
+        return None
+    code = (
+        "function maximum_odd_binary(s)\n"
+        "    n = count(==('1'), s)\n"
+        "    '1'^(n-1) * '0'^(length(s)-n) * \"1\"\n"
+        "end\n\n"
+        f'input = repeat("01", {INPUT_LEN // 2})\n'
+        "maximum_odd_binary(input)\n"
+        f"n = {N_ITERS}\n"
+        "t = @elapsed for _ in 1:n\n"
+        "    maximum_odd_binary(input)\n"
+        "end\n"
+        "println(t / n)\n"
+    )
+    path = write_temp(".jl", code)
+    try:
+        out, _, rc = run_cmd([interp, "--startup-file=no", path], timeout=60)
+        return parse_number(out) if rc == 0 else None
+    finally:
+        os.unlink(path)
+
+
 # ─────────────────────────── Benchmark: Python ──────────────────
 
 
@@ -2460,6 +2516,36 @@ SOLUTIONS = [
             "  maximum_odd_binary(input)  # warmup\n"
             "  t = @elapsed for _ in 1:N\n"
             "      maximum_odd_binary(input)  # sort + circshift (allocates)\n"
+            "  end"
+        ),
+    ),
+    dict(
+        name="Julia",
+        code="bool sort+circshift",
+        bytes=None,
+        color="#9558b2",
+        logo="julia_logo_darkmode",
+        source_code="function mob(s)\n  v = circshift(sort(collect(s) .== '1', rev=true), -1)\n  String(map(b -> b ? '1' : '0', v))\nend",
+        bench=bench_julia_bool,
+        script=(
+            "  maximum_odd_binary(input)  # warmup\n"
+            "  t = @elapsed for _ in 1:N\n"
+            "      maximum_odd_binary(input)  # str→Bool[], sort, circshift, →str\n"
+            "  end"
+        ),
+    ),
+    dict(
+        name="Julia",
+        code="count+construct",
+        bytes=None,
+        color="#9558b2",
+        logo="julia_logo_darkmode",
+        source_code="function mob(s)\n  n = count(==('1'), s)\n  '1'^(n-1) * '0'^(length(s)-n) * \"1\"\nend",
+        bench=bench_julia_count,
+        script=(
+            "  maximum_odd_binary(input)  # warmup\n"
+            "  t = @elapsed for _ in 1:N\n"
+            "      maximum_odd_binary(input)  # O(n) count + string concat\n"
             "  end"
         ),
     ),
