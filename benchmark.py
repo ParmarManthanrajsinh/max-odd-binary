@@ -25,7 +25,7 @@ INPUT_SIZES = [100, 1_000, 10_000, 100_000]
 ROOT = Path(__file__).parent
 BUILD_DIR = ROOT / "build"
 LOGOS_DIR = ROOT / "logos"
-OUTPUT_PNG = ROOT / "benchmark_results.png"
+OUTPUT_PNG = ROOT / "img" / "benchmark_results.png"
 CACHE_FILE = ROOT / "benchmark_cache.json"
 
 
@@ -1224,6 +1224,9 @@ def generate_html(all_results, output_path):
     width: clamp(200px, 40vw, 640px); height: clamp(200px, 40vw, 640px);
     object-fit: contain;
   }}
+  .slide-fullimg img {{
+    width: 100vw; height: 100vh; object-fit: contain;
+  }}
   .slide-code {{
     background: #282a36;
   }}
@@ -1231,6 +1234,19 @@ def generate_html(all_results, output_path):
     position: absolute; top: 48px; left: 48px;
     max-width: min(14vw, 260px); max-height: min(14vw, 260px);
     min-width: 140px; object-fit: contain;
+  }}
+  .pres-logo-wrap {{
+    position: absolute; top: 48px; left: 48px;
+    display: inline-block;
+  }}
+  .pres-logo-wrap .pres-logo {{
+    position: static; display: block;
+  }}
+  .pres-badge {{
+    position: absolute; bottom: -16px; right: -16px;
+    width: 96px; height: 96px;
+    border-radius: 50%; border: none;
+    object-fit: cover;
   }}
   .slide-code .pres-code-wrap {{
     display: flex; align-items: center; justify-content: center;
@@ -1391,8 +1407,12 @@ def generate_html(all_results, output_path):
     <div class="title-sub">Episode I: Maximum Odd Binary</div>
     <div class="bottom-logos" id="bottom-logos"></div>
   </div>
-  <!-- 1: Section (Episode I style) -->
-  <div class="slide" data-slide="1" data-wipe="clock">
+  <!-- 1: Problem description image -->
+  <div class="slide slide-fullimg" data-slide="1" data-wipe="down">
+    <img src="img/problem.png" alt="Max Odd Binary problem">
+  </div>
+  <!-- 2: Section (Episode I style) -->
+  <div class="slide" data-slide="2" data-wipe="clock">
     <div class="slide-section">
       <div class="sec-top">PERF WARS</div>
       <div class="sec-bar"></div>
@@ -1401,11 +1421,7 @@ def generate_html(all_results, output_path):
       <div class="sec-subtitle">Sort + Rotate</div>
     </div>
   </div>
-  <!-- 2-4: Text slides -->
-  <div class="slide" data-slide="2">
-    <div class="slide-text">Problem Description</div>
-  </div>
-  <div class="slide" data-slide="3">
+  <div class="slide" data-slide="3" data-wipe="clock">
     <div class="slide-text">Array Solutions</div>
   </div>
   <div class="slide" data-slide="4">
@@ -1437,7 +1453,7 @@ def generate_html(all_results, output_path):
       <div class="sec-subtitle">Partition + Rotate</div>
     </div>
   </div>
-  <div class="slide slide-code" data-slide="14" id="slide-code-cpp-part"></div>
+  <div class="slide slide-code" data-slide="14" data-wipe="down" id="slide-code-cpp-part"></div>
   <div class="slide slide-code" data-slide="15" id="slide-code-rust-part"></div>
   <div class="slide slide-code" data-slide="16" id="slide-code-d-part"></div>
   <!-- Part III -->
@@ -1450,7 +1466,7 @@ def generate_html(all_results, output_path):
       <div class="sec-subtitle">Count + Construct</div>
     </div>
   </div>
-  <div class="slide" data-slide="18">
+  <div class="slide" data-slide="18" data-wipe="up">
     <div class="slide-text">Array Solutions</div>
   </div>
   <div class="slide slide-code" data-slide="19" id="slide-code-cpp-count"></div>
@@ -1464,6 +1480,21 @@ def generate_html(all_results, output_path):
       <div class="sec-part">PART IV</div>
       <div class="sec-bar"></div>
       <div class="sec-subtitle">Twitter++</div>
+    </div>
+  </div>
+  <div class="slide slide-code" data-slide="23" data-wipe="rtl" id="slide-code-cpp-part-iv"></div>
+  <div class="slide slide-code" data-slide="24" id="slide-code-cpp-partpoint"></div>
+  <div class="slide slide-code" data-slide="25" id="slide-code-cpp-partonly"></div>
+  <div class="slide slide-code" data-slide="26" id="slide-code-cpp-cc2"></div>
+  <div class="slide slide-code" data-slide="27" id="slide-code-cpp-cc3"></div>
+  <!-- Part V -->
+  <div class="slide" data-slide="28" data-wipe="clock">
+    <div class="slide-section">
+      <div class="sec-top">PERF WARS</div>
+      <div class="sec-bar"></div>
+      <div class="sec-part">PART V</div>
+      <div class="sec-bar"></div>
+      <div class="sec-subtitle">Performance</div>
     </div>
   </div>
 </div>
@@ -2102,6 +2133,11 @@ function buildSlides() {{
     ['slide-code-cpp-count', 'C++', 'count+construct'],
     ['slide-code-rust-count', 'Rust', 'count+construct'],
     ['slide-code-d-count', 'D', 'count+construct'],
+    ['slide-code-cpp-part-iv', 'C++', 'partition+rotate'],
+    ['slide-code-cpp-partpoint', 'C++', 'partition+partition_point'],
+    ['slide-code-cpp-partonly', 'C++', 'partition'],
+    ['slide-code-cpp-cc2', 'C++', 'count+construct 2'],
+    ['slide-code-cpp-cc3', 'C++', 'count+construct 3'],
   ];
   codeSlides.forEach(([id, name, code]) => {{
     const sol = solByKey[name + '|' + code];
@@ -2109,7 +2145,22 @@ function buildSlides() {{
     const el = document.getElementById(id);
     const logo = document.createElement('img');
     logo.className = 'pres-logo'; logo.src = sol.logo;
-    el.appendChild(logo);
+    let badgeSrc = null;
+    if (name === 'D') badgeSrc = 'img/cyrus_msk.jpg';
+    if (code === 'count+construct 2') badgeSrc = 'img/nekrolm.jpg';
+    if (code === 'count+construct 3') badgeSrc = 'img/barryrevzin.jpg';
+    if (badgeSrc) {{
+      const lw = document.createElement('div');
+      lw.className = 'pres-logo-wrap';
+      lw.appendChild(logo);
+      const badge = document.createElement('img');
+      badge.className = 'pres-badge';
+      badge.src = badgeSrc;
+      lw.appendChild(badge);
+      el.appendChild(lw);
+    }} else {{
+      el.appendChild(logo);
+    }}
     const wrap = document.createElement('div');
     wrap.className = 'pres-code-wrap';
     wrap.innerHTML = sol.highlighted_html;
@@ -2811,9 +2862,9 @@ def main():
         print("Rebuilding outputs from cache...")
         default_size = 1_000
         results = cached.get(default_size) or next(iter(cached.values()))
-        generate_chart(results, ROOT / "benchmark_all.png")
+        generate_chart(results, ROOT / "img" / "benchmark_all.png")
         results_filtered = [r for r in results if r["name"] not in ("TinyAPL", "Kap")]
-        generate_chart(results_filtered, ROOT / "benchmark_no_tinyapl.png")
+        generate_chart(results_filtered, ROOT / "img" / "benchmark_no_tinyapl.png")
         generate_html(cached, ROOT / "benchmark.html")
         return
 
@@ -2870,9 +2921,9 @@ def main():
         )
 
     print("\nGenerating outputs...")
-    generate_chart(results, ROOT / "benchmark_all.png")
+    generate_chart(results, ROOT / "img" / "benchmark_all.png")
     results_filtered = [r for r in results if r["name"] not in ("TinyAPL", "Kap")]
-    generate_chart(results_filtered, ROOT / "benchmark_no_tinyapl.png")
+    generate_chart(results_filtered, ROOT / "img" / "benchmark_no_tinyapl.png")
     generate_html(all_results, ROOT / "benchmark.html")
 
 
