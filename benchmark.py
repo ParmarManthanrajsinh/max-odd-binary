@@ -1666,7 +1666,8 @@ def generate_html(all_results, output_path):
 const BENCH = {json.dumps(json_payload, ensure_ascii=False)};
 const SIZES = BENCH.sizes;
 const SOLS  = BENCH.solutions;
-const enabled = new Set(SOLS.map((_, i) => i));
+const HIDDEN_BY_DEFAULT = new Set(['TinyAPL', 'Kap', 'Smalltalk']);
+const enabled = new Set(SOLS.map((_, i) => i).filter(i => !HIDDEN_BY_DEFAULT.has(SOLS[i].name)));
 const enabledApproaches = new Set(['sort', 'partition', 'count']);
 let currentSize = SIZES.includes(1000) ? '1000' : String(SIZES[0]);
 let barChart, lineChart;
@@ -1707,13 +1708,15 @@ function buildControls() {{
     langs.find(l => l.name === d.name).indices.push(i);
   }});
   langs.forEach(lang => {{
-    enabledLangs.add(lang.name);
+    const startOn = !HIDDEN_BY_DEFAULT.has(lang.name);
+    if (startOn) enabledLangs.add(lang.name);
+    else lang.indices.forEach(i => enabled.delete(i));
     const chip = document.createElement('button');
-    chip.className = 'chip active';
+    chip.className = startOn ? 'chip active' : 'chip';
     chip.style.setProperty('--c', lang.color);
     chip.innerHTML =
       (lang.logo ? `<img src="${{lang.logo}}" alt="">` : '') +
-      `<span class="check">\\u2713</span>` +
+      `<span class="check">${{startOn ? '\\u2713' : ''}}</span>` +
       `<span>${{lang.name}}</span>`;
     chip.onclick = () => {{
       const on = enabledLangs.has(lang.name);
