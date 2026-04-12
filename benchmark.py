@@ -301,6 +301,77 @@ def bench_kap():
     return None
 
 
+# ─────────────────────────── Benchmark: C ───────────────────────
+
+_c_bin_cache = {}
+
+
+def bench_c(name, func_body):
+    compiler = find_cmd("gcc", "clang")
+    if not compiler:
+        return None
+
+    if name not in _c_bin_cache:
+        BUILD_DIR.mkdir(exist_ok=True)
+        src = (
+            "#include <stdio.h>\n"
+            "#include <string.h>\n"
+            "#include <stdlib.h>\n"
+            "#ifdef _WIN32\n"
+            "#include <windows.h>\n"
+            "double get_time() {\n"
+            "  LARGE_INTEGER t, f;\n"
+            "  QueryPerformanceCounter(&t);\n"
+            "  QueryPerformanceFrequency(&f);\n"
+            "  return (double)t.QuadPart / (double)f.QuadPart;\n"
+            "}\n"
+            "#else\n"
+            "#include <time.h>\n"
+            "double get_time() {\n"
+            "  struct timespec ts;\n"
+            "  clock_gettime(CLOCK_MONOTONIC, &ts);\n"
+            "  return ts.tv_sec + ts.tv_nsec * 1e-9;\n"
+            "}\n"
+            "#endif\n\n"
+            f"{func_body}\n\n"
+            "int main() {\n"
+            f"  int input_len = {INPUT_LEN};\n"
+            "  char *input = malloc(input_len + 1);\n"
+            "  for (int i = 0; i < input_len / 2; ++i) {\n"
+            "    input[2 * i] = '0'; input[2 * i + 1] = '1';\n"
+            "  }\n"
+            "  input[input_len] = '\\0';\n"
+            f"  int n = {N_ITERS};\n"
+            "  char *result = NULL;\n"
+            "  double start = get_time();\n"
+            "  for (int i = 0; i < n; ++i) {\n"
+            "    if (result) free(result);\n"
+            "    result = maximum_odd_binary(input);\n"
+            "  }\n"
+            "  double end = get_time();\n"
+            "  printf(\"%f\\n\", (end - start) / n);\n"
+            "  if (result) free(result);\n"
+            "  free(input);\n"
+            "  return 0;\n"
+            "}\n"
+        )
+        src_path = BUILD_DIR / f"bench_{name}.c"
+        bin_path = BUILD_DIR / f"bench_{name}_c"
+        src_path.write_text(src)
+
+        _, cerr, crc = run_cmd([compiler, "-O3", "-o", str(bin_path), str(src_path)])
+        if crc != 0:
+            _c_bin_cache[name] = None
+            return None
+        _c_bin_cache[name] = str(bin_path)
+
+    bin_path = _c_bin_cache[name]
+    if bin_path is None:
+        return None
+    out, _, rc = run_cmd([bin_path])
+    return parse_number(out) if rc == 0 else None
+
+
 # ─────────────────────────── Benchmark: C++ ─────────────────────
 
 _cpp_bin_cache = {}
@@ -864,6 +935,44 @@ def bench_smalltalk_count():
     return _run_squeak_bench(code)
 
 
+# ─────────────────────────── Logo: C ────────────────────────────
+
+
+def _make_c_logo():
+    c_logo = LOGOS_DIR / "c_logo.png"
+    if c_logo.exists():
+        return
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        size = 128
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle(
+            [4, 4, size - 4, size - 4],
+            radius=20,
+            fill="#a8b9cc",
+            outline="#ffffff",
+            width=3,
+        )
+        try:
+            font = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60
+            )
+        except Exception:
+            font = ImageFont.load_default()
+        draw.text(
+            (size // 2, size // 2),
+            "C",
+            fill="white",
+            font=font,
+            anchor="mm",
+        )
+        img.save(str(c_logo))
+    except Exception:
+        pass
+
+
 # ─────────────────────────── Logo: C++ ──────────────────────────
 
 
@@ -916,6 +1025,7 @@ def generate_chart(results, output_path=OUTPUT_PNG):
     from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 
     _make_cpp_logo()
+    _make_c_logo()
 
     BQN_FONT = Path.home() / ".local/share/fonts/BQN386.ttf"
     from matplotlib import font_manager as fm
@@ -1111,6 +1221,7 @@ def generate_html(all_results, output_path):
     first_results = all_results[sizes[0]]
 
     HIGHLIGHT_LANGS = {
+        "C": "c",
         "C++": "cpp",
         "Rust": "rust",
         "Nim": "nim",
@@ -2529,6 +2640,35 @@ SOLUTIONS = [
         ),
     ),
     dict(
+        name="C",
+        code="count+construct",
+        bytes=None,
+        color="#a8b9cc",
+        logo="c_logo",
+        source_code="char *maximum_odd_binary(const char *s) {\n  int len = strlen(s);\n  int ones = 0;\n  for (int i = 0; i < len; i++) {\n    ones += (s[i] == '1');\n  }\n  char *result = (char *)malloc(len + 1);\n  memset(result, '1', ones - 1);\n  memset(result + (ones - 1), '0', len - ones);\n  result[len - 1] = '1';\n  result[len] = '\\0';\n  return result;\n}",
+        bench=lambda: bench_c(
+            "count_construct",
+            "char *maximum_odd_binary(const char *s) {\n"
+            "  int len = strlen(s);\n"
+            "  int ones = 0;\n"
+            "  for (int i = 0; i < len; i++) {\n"
+            "    ones += (s[i] == '1');\n"
+            "  }\n"
+            "  char *result = (char *)malloc(len + 1);\n"
+            "  memset(result, '1', ones - 1);\n"
+            "  memset(result + (ones - 1), '0', len - ones);\n"
+            "  result[len - 1] = '1';\n"
+            "  result[len] = '\\0';\n"
+            "  return result;\n"
+            "}"
+        ),
+        script=(
+            "  // O(n) count + construct using malloc/memset\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);"
+        ),
+    ),
+    dict(
         name="C++",
         code="partition+rotate",
         bytes=None,
@@ -2913,6 +3053,7 @@ def run_benchmarks_for_size(input_len, log_scripts=False, lang_filter=None):
     """Run solutions for a given input length. If lang_filter is set, only run matching."""
     global INPUT_LEN
     INPUT_LEN = input_len
+    _c_bin_cache.clear()
     _cpp_bin_cache.clear()
     _d_bin_cache.clear()
     _rust_bin_cache.clear()
