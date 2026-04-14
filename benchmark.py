@@ -2884,6 +2884,30 @@ SOLUTIONS = [
         ),
     ),
     dict(
+        name="C++",
+        code="count+construct 5",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
+        source_code="std::string mob(std::string s) {\n  int len = s.size();\n  int ones = 0;\n  for (char c : s) ones += (c == '1');\n  if (ones == 0) return \"\";\n  std::string result(len, '0');\n  std::fill(result.begin(), result.begin() + (ones - 1), '1');\n  result[len - 1] = '1';\n  return result;\n}",
+        bench=lambda: bench_cpp(
+            "count_construct5",
+            "int len = s.size();\n"
+            "  int ones = 0;\n"
+            "  for (char c : s) ones += (c == '1');\n"
+            "  if (ones == 0) { s.clear(); return s; }\n"
+            "  std::string result(len, '0');\n"
+            "  std::fill(result.begin(), result.begin() + (ones - 1), '1');\n"
+            "  result[len - 1] = '1';\n"
+            "  s = std::move(result);",
+        ),
+        script=(
+            "  // O(n) loop count + fill construct\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);"
+        ),
+    ),
+    dict(
         name="Rust",
         code="sort+rotate",
         bytes=None,
